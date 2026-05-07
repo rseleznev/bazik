@@ -1,5 +1,11 @@
 package main
 
+type mock struct{}
+
+func (m mock) Add() error {
+	return nil
+}
+
 func main() {
 	// парсим конфиг
 	conf := &Config{}
@@ -7,6 +13,14 @@ func main() {
 	// создаем Balancer
 	balancer := NewBalancer(conf)
 
-	// Balancer.Start()
-	balancer.Start()
+	m := mock{}
+
+	// создаем Linker
+	linker, err := NewLinker(*balancer, m)
+	if err != nil {
+		panic(err)
+	}
+
+	// ждем входящие соединения
+	linker.Serve()
 }
