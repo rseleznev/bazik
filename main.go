@@ -1,26 +1,34 @@
 package main
 
+import (
+	"github.com/rseleznev/bazik/config"
+	"github.com/rseleznev/bazik/internal/balancer"
+	"github.com/rseleznev/bazik/internal/linker"
+)
+
 type mock struct{}
 
 func (m mock) Add() error {
 	return nil
 }
+func (m mock) Close()
 
 func main() {
 	// парсим конфиг
-	conf := &Config{}
+	conf := &config.Config{}
 
-	// создаем Balancer
-	balancer := NewBalancer(conf)
+	// создаем Router
+	balancer := balancer.NewBalancer(conf)
 
+	// временный мок поллера
 	m := mock{}
 
 	// создаем Linker
-	linker, err := NewLinker(*balancer, m)
+	linker, err := linker.NewLinker(conf, balancer, m)
 	if err != nil {
 		panic(err)
 	}
 
-	// ждем входящие соединения
+	// слушаем входящие соединения
 	linker.Serve()
 }
