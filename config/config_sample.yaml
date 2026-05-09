@@ -4,56 +4,57 @@ port: "5000"
 proto: tcp
 balancing_alg: random
 retry_amount: 3
-timeout_seconds: 60
+max_response_time: 60
 max_clients_limit: 2000
 max_idle_seconds: 300
 servers:
   - address: "25.145.82.0:23769"
     retry_amount: 3
-    timeout_seconds: 60
+    max_response_time: 60
         
   - address: "25.145.83.0:23769"
     retry_amount: 1
-    timeout_seconds: 60
+    max_response_time: 60
         
   - address: "25.145.84.0:23769"
     retry_amount: 5
-    timeout_seconds: 60
+    max_response_time: 60
+    max_clients_limit: 500
     max_idle_seconds: 10
 # ports:
 #   - 5000:
 #     proto: tcp
 #     balancing_alg: random
 #     retry_amount: 3
-#     timeout_seconds: 60
+#     max_response_time: 60
 #     max_clients_limit: 2000
 #     max_idle_seconds: 300
 #     servers:
 #       - address: "25.145.82.0:23769"
 #         retry_amount: 3
-#         timeout_seconds: 60
+#         max_response_time: 60
             
 #       - address: "25.145.83.0:23769"
 #         retry_amount: 1
-#         timeout_seconds: 60
+#         max_response_time: 60
             
 #       - address: "25.145.84.0:23769"
 #         retry_amount: 5
-#         timeout_seconds: 60
+#         max_response_time: 60
 #         max_idle_seconds: 10
         
 #   - 7222:
 #     proto: http
 #     balancing_alg: round robin
 #     retry_amount: 5
-#     timeout_seconds: 60
+#     max_response_time: 60
 #     max_clients_limit: 3000
 #     max_idle_seconds: 100
 #     servers:
 #       - address: "25.145.82.0:23769"
 #         retry_amount: 3
-#         timeout_seconds: 60
+#         max_response_time: 60
             
 #       - address: "25.145.83.0:23769"
 #         retry_amount: 1
-#         timeout_seconds: 60
+#         max_response_time: 60

@@ -39,7 +39,7 @@ func NewHandler(conf *config.Config) *Handler {
 	return &Handler{}
 }
 
-func (h *Handler) Listen() *models.Client {
+func (h *Handler) Accept() *models.Client {
 	if h.listeningSock == 0 {
 		// создает сокет
 		s, err := h.sys.NewSocket(0, 0, 0)
@@ -100,6 +100,12 @@ func (h *Handler) TCPProxy(client *models.Client, server *models.Server) error {
 		// continue
 		break
 	}
+
+	// соединение может завершиться следующими вариантами:
+	// 1)Истек таймаут бездействия (Config.MaxIdleTime)
+	// 2)Истек таймаут ответа (Config.MaxResponseTime)
+	// 3)Клиент закрыл соединение
+	// 4)Сервер закрыл соединение
 
 	return nil
 }

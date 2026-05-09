@@ -35,7 +35,7 @@ type options struct {
 }
 
 type handler interface {
-	Listen() *models.Client
+	Accept() *models.Client
 	TCPProxy(*models.Client, *models.Server) error
 }
 

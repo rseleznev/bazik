@@ -2,26 +2,28 @@ package balancer
 
 import (
 	"math/rand"
+	"sync/atomic"
 
 	"github.com/rseleznev/bazik/internal/models"
 )
 
 
 type tcpHandler interface {
-	Listen() *models.Client
+	Accept() *models.Client
 	TCPProxy(*models.Client, *models.Server) error
 }
 
 type TCPBalancer struct {
 	opts *options
 	servers []*models.Server
+	clientsLen atomic.Int32
 
 	handler tcpHandler
 }
 
 func (b *TCPBalancer) Start() {
 	for {
-		client := b.handler.Listen()
+		client := b.handler.Accept()
 		go b.processNewClient(client)
 
 		continue
