@@ -21,16 +21,16 @@ func main() {
 
 type controller struct {
 	flags []string
-	
+
 	blncr balancer.Balancer
 }
 
 func (c *controller) parseConfig(_ string) *config.Config {
-	conf := config.Config{
-		BalancingAlg: "random",
+	conf := &config.Config{
+		Proto: "random",
 	}
 	
-	return &conf
+	return conf
 }
 
 func (c *controller) run(conf *config.Config) {

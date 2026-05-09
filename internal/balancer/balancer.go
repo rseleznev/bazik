@@ -10,10 +10,9 @@ type Balancer interface {
 }
 
 type options struct {
-	proto string
-	
-	ipVersion string // IPv4
 	addr string // 127.0.0.1:5000
+	ipVersion string // ipv4
+	proto string // tcp
 
 	// Алгоритм балансировки
 	balancingAlg string
@@ -36,7 +35,7 @@ type options struct {
 }
 
 type handler interface {
-	Listen(chan *models.Client)
+	Listen() *models.Client
 	TCPProxy(*models.Client, *models.Server) error
 }
 
@@ -51,7 +50,6 @@ func NewBalancer(conf *config.Config, h handler) Balancer {
 		
 		return &TCPBalancer{
 			opts: &o,
-			newClients: make(chan *models.Client),
 
 			handler: h,
 		}	

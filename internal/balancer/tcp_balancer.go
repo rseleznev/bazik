@@ -1,37 +1,51 @@
 package balancer
 
 import (
+	"math/rand"
+
 	"github.com/rseleznev/bazik/internal/models"
 )
 
 
 type tcpHandler interface {
-	Listen(chan *models.Client)
+	Listen() *models.Client
 	TCPProxy(*models.Client, *models.Server) error
 }
 
 type TCPBalancer struct {
 	opts *options
 	servers []*models.Server
-	newClients chan *models.Client
 
 	handler tcpHandler
 }
 
 func (b *TCPBalancer) Start() {
-	go b.handler.Listen(b.newClients)
-
-	for client := range b.newClients {
+	for {
+		client := b.handler.Listen()
 		go b.processNewClient(client)
+
+		continue
 	}
 }
 
 func (b *TCPBalancer) processNewClient(client *models.Client) {
-	// подбирает сервер для клиента
-	s := b.servers[0]
+	// подбираем сервер для клиента
+	s := b.findServer()
 
 	err := b.handler.TCPProxy(client, s)
 	if err != nil {
 		
+	}	
+}
+
+func (b *TCPBalancer) findServer() *models.Server {
+	switch b.opts.balancingAlg {
+	case "random":
+		n := rand.Intn(len(b.servers))
+		return b.servers[n]
+
+	default:
+		return &models.Server{}
+
 	}
 }

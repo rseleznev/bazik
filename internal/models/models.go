@@ -8,8 +8,6 @@ type Address struct {
 }
 
 type Server struct {
-	sock int
-	
 	Addr Address
 	Opts ServerOptions
 }
@@ -25,9 +23,6 @@ type ServerOptions struct {
 	// Максимальное кол-во клиентов.
 	// Когда лимит будет превышен, последующие соединения будут получать ошибку ECONNREFUSED
 	MaxClientsLimit int
-
-	// Максимальное время бездействия соединения прежде чем оно будет закрыто
-	MaxChatIdleTime int
 }
 
 type Client struct {
