@@ -3,32 +3,43 @@ package main
 import (
 	"github.com/rseleznev/bazik/config"
 	"github.com/rseleznev/bazik/internal/balancer"
-	"github.com/rseleznev/bazik/internal/linker"
+	"github.com/rseleznev/bazik/internal/handler"
 )
 
-type mock struct{}
-
-func (m mock) Add() error {
-	return nil
-}
-func (m mock) Close()
-
 func main() {
+	// создаем controller
+	ctl := controller{}
+	
+	// парсим stdin (флаги, ссылку на конфиг)
+	
 	// парсим конфиг
-	conf := &config.Config{}
+	conf := ctl.parseConfig(ctl.flags[0])
 
-	// создаем Router
-	balancer := balancer.NewBalancer(conf)
+	// запускаем
+	ctl.run(conf)
+}
 
-	// временный мок поллера
-	m := mock{}
+type controller struct {
+	flags []string
+	
+	blncr balancer.Balancer
+}
 
-	// создаем Linker
-	linker, err := linker.NewLinker(conf, balancer, m)
-	if err != nil {
-		panic(err)
+func (c *controller) parseConfig(_ string) *config.Config {
+	conf := config.Config{
+		BalancingAlg: "random",
 	}
+	
+	return &conf
+}
+
+func (c *controller) run(conf *config.Config) {
+	// создаем Handler
+	h := handler.NewHandler(conf)
+	
+	// создаем Balancer
+	c.blncr = balancer.NewBalancer(conf, h)
 
 	// слушаем входящие соединения
-	linker.Serve()
+	c.blncr.Start()
 }

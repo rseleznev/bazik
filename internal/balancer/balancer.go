@@ -1,47 +1,61 @@
 package balancer
 
 import (
-	"math/rand"
-	"sync"
-
 	"github.com/rseleznev/bazik/config"
 	"github.com/rseleznev/bazik/internal/models"
 )
 
-type server struct {
-	mu sync.Mutex
-	connectionsLen int
-
-	config.ParsedServer
+type Balancer interface {
+	Start()
 }
 
-type Balancer struct {
-	balancingAlg string
-	servers []*server
-}
-
-func NewBalancer(c *config.Config) *Balancer {
-	servers := make([]*server, 5)
+type options struct {
+	proto string
 	
-	return &Balancer{
-		balancingAlg: c.BalancingAlg,
-		servers: servers,
-	}
+	ipVersion string // IPv4
+	addr string // 127.0.0.1:5000
+
+	// Алгоритм балансировки
+	balancingAlg string
+	
+	// Количество попыток при неудаче прежде чем вернется ошибка
+	retryAmount int
+
+	// Количество секунд, за которое должен ответить получатель
+	// (клиент или сервер)
+	timeout int
+
+	// Максимальное кол-во клиентов.
+	// Когда лимит будет превышен, последующие соединения будут получать ошибку ECONNREFUSED
+	maxClientsLimit int
+
+	// Максимальное время бездействия соединения прежде чем оно будет закрыто
+	maxChatIdleTime int
+
+	// ...
 }
 
-func (b *Balancer) FindServer() models.Server {
-	switch b.balancingAlg {
-	case "random":
-		n := rand.Intn(len(b.servers))
+type handler interface {
+	Listen(chan *models.Client)
+	TCPProxy(*models.Client, *models.Server) error
+}
+
+func NewBalancer(conf *config.Config, h handler) Balancer {
+	var o options
+
+	if conf.Proto == "tcp" {
+		h, ok := h.(tcpHandler)
+		if !ok {
+			panic("balancer interface assert err")
+		}
 		
-		return b.servers[n]
+		return &TCPBalancer{
+			opts: &o,
+			newClients: make(chan *models.Client),
 
-	default:
-		return b.servers[0]
-
+			handler: h,
+		}	
 	}
-}
 
-func (s *server) GetAddr() models.Address {
-	return s.Addr
+	return &TCPBalancer{}
 }
