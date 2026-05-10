@@ -2,7 +2,6 @@ package config
 
 type Config struct {	
 	IP string
-	IPVersion string // ipv4
 	Port int
 	Proto string
 
@@ -10,26 +9,32 @@ type Config struct {
 	BalancingAlg string
 
 	// Частота проверки жизни серверов
+	// Размеры буферов ядра
 
 	// Количество попыток при неудаче прежде чем вернется ошибка
 	RetryAmount int
 
 	// Количество секунд, за которое должен ответить получатель
 	// (клиент или сервер)
-	MaxResponseTime int
+	MaxResponseSeconds int
 
 	// Максимальное кол-во клиентов.
 	// Когда лимит будет превышен, последующие соединения будут получать ошибку ECONNREFUSED
 	MaxClientsLimit int
 
 	// Максимальное время бездействия клиента
-	MaxIdleTime int
+	MaxIdleSeconds int
 
-	// Максимальное количество сокетов для каждого сервера
+	// Отключение пула серверных сокетов
+	// По умолчанию false, то есть пул создается
+	DisableServerSocksPool bool
+	// Максимальные размеры пула сокетов для каждого сервера.
+	// Должен быть больше 0. По умолчанию 10
 	MaxServerSocksPoolLen int
-	// Начальное количество сокетов для каждого сервера
+	// Начальное количество сокетов в пуле для каждого сервера.
 	// Количество может увеличиваться до MaxServerSocksPoolLen в зависимости
-	// от нагрузки, и потом снова снижается до InitialServerSocksPoolLen
+	// от нагрузки, и потом снова снижается до InitialServerSocksPoolLen.
+	// Не должен быть больше MaxServerSocksPoolLen. По умолчанию 3
 	InitialServerSocksPoolLen int
 
 	// Список доступных серверов
@@ -38,9 +43,10 @@ type Config struct {
 
 		// Настройки для конкретного сервера
 		RetryAmount int
-		Timeout int
-		MaxClientsLimit int
-		MaxIdleTime int
+		MaxResponseSeconds int
+		MaxClientsLimit int // должен быть меньше или равен общему MaxClientsLimit
+		MaxIdleSeconds int
+		DisableServerSocksPool bool
 		MaxServerSocksPoolLen int
 		InitialServerSocksPoolLen int
 	}

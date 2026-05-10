@@ -2,7 +2,7 @@ package balancer
 
 import (
 	"math/rand"
-	"sync/atomic"
+	"sync"
 
 	"github.com/rseleznev/bazik/internal/models"
 )
@@ -10,13 +10,16 @@ import (
 
 type tcpHandler interface {
 	Accept() *models.Client
+	Close(*models.Client)
 	TCPProxy(*models.Client, *models.Server) error
 }
 
 type TCPBalancer struct {
+	mu sync.Mutex
 	opts *options
 	servers []*models.Server
-	clientsLen atomic.Int32
+	clients map[int]*models.Client
+	clientsAmount int
 
 	handler tcpHandler
 }
@@ -31,12 +34,26 @@ func (b *TCPBalancer) Start() {
 }
 
 func (b *TCPBalancer) processNewClient(client *models.Client) {
+	b.mu.Lock()
+
+	if b.clientsAmount+1 >= b.opts.maxClientsLimit {
+		b.mu.Unlock()
+		b.handler.Close(client)
+
+		return
+	}
+	b.clientsAmount++
+	b.clients[client.Sock] = client
+
 	// подбираем сервер для клиента
 	s := b.findServer()
+	b.mu.Unlock()
 
 	err := b.handler.TCPProxy(client, s)
 	if err != nil {
-		
+		// если сервер упал - выдаем новый
+
+		// если клиент не ответил за отведенный таймаут?
 	}	
 }
 

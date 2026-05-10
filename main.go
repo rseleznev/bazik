@@ -1,6 +1,9 @@
 package main
 
 import (
+	"log"
+	"os"
+
 	"github.com/rseleznev/bazik/config"
 	"github.com/rseleznev/bazik/internal/balancer"
 	"github.com/rseleznev/bazik/internal/handler"
@@ -25,7 +28,12 @@ type controller struct {
 	blncr balancer.Balancer
 }
 
-func (c *controller) parseConfig(_ string) *config.Config {
+func (c *controller) parseConfig(path string) *config.Config {
+	_, err := os.ReadFile(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	
 	conf := &config.Config{
 		Proto: "random",
 	}

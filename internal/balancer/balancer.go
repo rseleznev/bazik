@@ -11,7 +11,6 @@ type Balancer interface {
 
 type options struct {
 	addr string // 127.0.0.1:5000
-	ipVersion string // ipv4
 	proto string // tcp
 
 	// Алгоритм балансировки
@@ -22,20 +21,21 @@ type options struct {
 
 	// Количество секунд, за которое должен ответить получатель
 	// (клиент или сервер)
-	timeout int
+	maxResponseSeconds int
 
 	// Максимальное кол-во клиентов.
 	// Когда лимит будет превышен, последующие соединения будут получать ошибку ECONNREFUSED
 	maxClientsLimit int
 
-	// Максимальное время бездействия соединения прежде чем оно будет закрыто
-	maxChatIdleTime int
+	// Максимальное количество секунд бездействия прежде чем соединение будет закрыто
+	maxIdleSeconds int
 
 	// ...
 }
 
 type handler interface {
 	Accept() *models.Client
+	Close(*models.Client)
 	TCPProxy(*models.Client, *models.Server) error
 }
 
@@ -50,6 +50,7 @@ func NewBalancer(conf *config.Config, h handler) Balancer {
 		
 		return &TCPBalancer{
 			opts: &o,
+			clients: make(map[int]*models.Client, o.maxClientsLimit),
 
 			handler: h,
 		}	
