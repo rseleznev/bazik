@@ -9,15 +9,17 @@ import (
 
 
 type tcpHandler interface {
+	InitServer(models.Server)
+	Listen(addr models.Address)
 	Accept() *models.Client
 	Close(*models.Client)
-	TCPProxy(*models.Client, *models.Server) error
+	TCPProxy(*models.Client, models.Server) error
 }
 
 type TCPBalancer struct {
 	mu sync.Mutex
 	opts *options
-	servers []*models.Server
+	servers []*server
 	clients map[int]*models.Client
 	clientsAmount int
 
@@ -25,6 +27,10 @@ type TCPBalancer struct {
 }
 
 func (b *TCPBalancer) Start() {
+	for _, s := range b.servers {
+		b.handler.InitServer(s)
+	}
+	
 	for {
 		client := b.handler.Accept()
 		go b.processNewClient(client)
@@ -36,7 +42,7 @@ func (b *TCPBalancer) Start() {
 func (b *TCPBalancer) processNewClient(client *models.Client) {
 	b.mu.Lock()
 
-	if b.clientsAmount+1 >= b.opts.maxClientsLimit {
+	if b.clientsAmount+1 >= b.opts.MaxClientsLimit {
 		b.mu.Unlock()
 		b.handler.Close(client)
 
@@ -57,14 +63,14 @@ func (b *TCPBalancer) processNewClient(client *models.Client) {
 	}	
 }
 
-func (b *TCPBalancer) findServer() *models.Server {
+func (b *TCPBalancer) findServer() *server {
 	switch b.opts.balancingAlg {
 	case "random":
 		n := rand.Intn(len(b.servers))
 		return b.servers[n]
 
 	default:
-		return &models.Server{}
+		return &server{}
 
 	}
 }

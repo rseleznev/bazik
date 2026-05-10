@@ -11,6 +11,20 @@ type Config struct {
 	// Частота проверки жизни серверов
 	// Размеры буферов ядра
 
+	// Общие настройки для всех серверов
+	ServerOptions
+
+	// Список доступных серверов
+	Servers []struct {
+		Address string
+
+		// Настройки для конкретного сервера.
+		// Имеют приоритет над общими
+		ServerOptions
+	}
+}
+
+type ServerOptions struct {
 	// Количество попыток при неудаче прежде чем вернется ошибка
 	RetryAmount int
 
@@ -27,27 +41,17 @@ type Config struct {
 
 	// Отключение пула серверных сокетов
 	// По умолчанию false, то есть пул создается
-	DisableServerSocksPool bool
+	DisableSocksPool bool
 	// Максимальные размеры пула сокетов для каждого сервера.
 	// Должен быть больше 0. По умолчанию 10
-	MaxServerSocksPoolLen int
+	MaxSocksPoolLen int
 	// Начальное количество сокетов в пуле для каждого сервера.
 	// Количество может увеличиваться до MaxServerSocksPoolLen в зависимости
 	// от нагрузки, и потом снова снижается до InitialServerSocksPoolLen.
 	// Не должен быть больше MaxServerSocksPoolLen. По умолчанию 3
-	InitialServerSocksPoolLen int
+	InitialSocksPoolLen int
+}
 
-	// Список доступных серверов
-	Servers []struct {
-		Address string
+func (c *Config) Init() {
 
-		// Настройки для конкретного сервера
-		RetryAmount int
-		MaxResponseSeconds int
-		MaxClientsLimit int // должен быть меньше или равен общему MaxClientsLimit
-		MaxIdleSeconds int
-		DisableServerSocksPool bool
-		MaxServerSocksPoolLen int
-		InitialServerSocksPoolLen int
-	}
 }

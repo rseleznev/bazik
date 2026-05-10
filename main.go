@@ -7,6 +7,7 @@ import (
 	"github.com/rseleznev/bazik/config"
 	"github.com/rseleznev/bazik/internal/balancer"
 	"github.com/rseleznev/bazik/internal/handler"
+	"github.com/rseleznev/bazik/internal/models"
 )
 
 func main() {
@@ -43,7 +44,8 @@ func (c *controller) parseConfig(path string) *config.Config {
 
 func (c *controller) run(conf *config.Config) {
 	// создаем Handler
-	h := handler.NewHandler(conf)
+	var p mockPoller
+	h := handler.NewHandler(p)
 	
 	// создаем Balancer
 	c.blncr = balancer.NewBalancer(conf, h)
@@ -51,3 +53,6 @@ func (c *controller) run(conf *config.Config) {
 	// слушаем входящие соединения
 	c.blncr.Start()
 }
+
+type mockPoller struct {}
+func (mp mockPoller) Add(_ models.PollingUnit) error

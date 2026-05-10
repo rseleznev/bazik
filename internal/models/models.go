@@ -1,6 +1,19 @@
 package models
 
-import "time"
+import (
+	"syscall"
+	"time"
+)
+
+type PollingUnit struct {
+	SocketFd int
+	EventType string // connect, income, outcome
+	ResultChan chan error // канал, чтобы вызывающий поток заблокировался на чтении
+}
+
+type PollingResult struct {
+	Err error
+}
 
 type Address struct {
 	Raw string
@@ -9,19 +22,16 @@ type Address struct {
 	Port int
 }
 
-type Server struct {
-	Addr Address
-	Opts ServerOptions
-	LastActivity time.Time
-	LastHealthCheck time.Time
-	ConnectionsLen int
-}
-
-type ServerOptions struct {}
-
 type Client struct {
 	Sock int
 	
 	Addr Address
 	LastActivity time.Time
+}
+
+type Server interface {
+	GetAddrIp4() syscall.SockaddrInet4
+	InitialPoolLen() int
+	MaxPoolLen() int
+	GetID() string
 }

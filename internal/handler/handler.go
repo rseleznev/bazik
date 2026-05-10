@@ -3,16 +3,16 @@ package handler
 import (
 	"errors"
 	"log"
+	"sync"
 	"syscall"
 	"time"
 
-	"github.com/rseleznev/bazik/config"
 	"github.com/rseleznev/bazik/internal/models"
 )
 
 type syscaller interface {
 	NewSocket(int, int, int) (int, error)
-	CloseSocket(int)
+	CloseSocket(int) error
 	Bind(int, syscall.Sockaddr) error
 	Listen(int, int) error
 	Accept(int) (int, syscall.Sockaddr, error)
@@ -21,37 +21,106 @@ type syscaller interface {
 }
 
 type poller interface {
-	Add() error
+	Add(models.PollingUnit) error
 }
 
 type Handler struct {
-	proto string
-	addr [4]byte
-	port int
+	mu sync.Mutex
 
 	listeningSock int
-	serverSocksPool map[string][]*serverSock
+	serverSocksPool map[string][]int
 
 	sys syscaller
 	poller poller
 }
 
-func NewHandler(conf *config.Config) *Handler {
-	// парсим конфиг
+func NewHandler(p poller) *Handler {
+	return &Handler{
+		serverSocksPool: make(map[string][]int),
+		sys: realSyscalls{},
+		poller: p,
+	}
+}
 
-	// создаем пул сокетов для каждого сервера
-	for _, v := range conf.Servers {
+func (h *Handler) InitServer(server models.Server) {
+
+	var wg sync.WaitGroup
+	for range server.InitialPoolLen() {
+		wg.Go(func() {
+			sock := h.createSock()
+			h.connectServerSock(sock, server)
+			h.addServerSockInPool(server.GetID(), sock)	
+		})
+	}
+	wg.Wait()
+}
+
+func (h *Handler) createSock() int {
+	s, err := h.sys.NewSocket(syscall.AF_INET, syscall.SOCK_STREAM | syscall.SOCK_NONBLOCK, syscall.IPPROTO_TCP)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return s
+}
+
+func (h *Handler) connectServerSock(sock int, server models.Server) {
+	addr := server.GetAddrIp4()
+	
+	err := h.sys.Connect(sock, &addr)
+	if err != nil {
+		if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EINPROGRESS) {
+			h.poll(sock, "connect")
+		}
+		
+		log.Fatal(err)
+	}
+}
+
+func (h *Handler) poll(sock int, eventType string) {
+	pUnit := models.PollingUnit{
+		SocketFd: sock,
+		EventType: eventType,
+		ResultChan: make(chan error),
+	}
+
+	err := h.poller.Add(pUnit)
+	if err != nil {
 
 	}
-	
-	return &Handler{}
+
+	// нужно узнавать таймаут по sock
+}
+
+func (h *Handler) addServerSockInPool(key string, sock int) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if len(h.serverSocksPool[key]) == 0 {
+		h.serverSocksPool[key] = make([]int, 0, 10)
+	}
+	h.serverSocksPool[key] = append(h.serverSocksPool[key], sock)
+}
+
+func (h *Handler) Listen(addr models.Address) {
+	s := h.createSock()
+
+	err := h.sys.Bind(s, &syscall.SockaddrInet4{
+		Port: addr.Port,
+		Addr: addr.IP,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = h.sys.Listen(s, 10) // 10 - ожидающие клиенты; дать возможность настройки в конфиге?
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	h.listeningSock = s
 }
 
 func (h *Handler) Accept() *models.Client {
-	if h.listeningSock == 0 {
-		h.createListeningSock()
-	}
-
 	for {
 		clientSock, clientAddrRaw, err := h.sys.Accept(h.listeningSock)
 		if err != nil {
@@ -72,37 +141,13 @@ func (h *Handler) Accept() *models.Client {
 	}
 }
 
-func (h *Handler) createListeningSock() {
-	s, err := h.sys.NewSocket(0, 0, 0)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	addr := syscall.SockaddrInet4{
-		Port: h.port,
-		Addr: h.addr,
-	}
-
-	err = h.sys.Bind(s, &addr)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = h.sys.Listen(s, 10) // 10 - ожидающие клиенты; дать возможность настройки в конфиге?
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	h.listeningSock = s
-}
-
 // Close закрывает клиентский сокет без соединения с сервером,
 // т.к. лимит клиентов превышен
 func (h *Handler) Close(client *models.Client) {
 	h.sys.CloseSocket(client.Sock)
 }
 
-func (h *Handler) TCPProxy(client *models.Client, server *models.Server) error {
+func (h *Handler) TCPProxy(client *models.Client, server models.Server) error {
 	// ищем серверный сокет в пуле
 	// если нет - смотрим, можем ли создать еще подключение к серверу
 	// если может - создаем
@@ -111,31 +156,31 @@ func (h *Handler) TCPProxy(client *models.Client, server *models.Server) error {
 	// добавляет clientSock в epoll на входящие
 	// добавляет serverSock в epoll на входящие
 
-	for {
-		// ждет события
-		select {
+	// for {
+	// 	// ждет события
+	// 	select {
 
-		// пришло сообщение от клиента
-		case <-clientSock.ResultChan:
-			// копирует данные из клиентского сокета в серверный
-			h.sys.Splice()
+	// 	// пришло сообщение от клиента
+	// 	case <-clientSock.ResultChan:
+	// 		// копирует данные из клиентского сокета в серверный
+	// 		h.sys.Splice()
 
-		// пришло сообщение от сервера
-		case <-serverSock.ResultChan:
-			// копирует данные из серверного сокета в клиентский
-			h.sys.Splice()
+	// 	// пришло сообщение от сервера
+	// 	case <-serverSock.ResultChan:
+	// 		// копирует данные из серверного сокета в клиентский
+	// 		h.sys.Splice()
 
-		// кто-то ждет ответ (Config.MaxResponseTime)
-		case <-ResponseTimeout:
-			return err
+	// 	// кто-то ждет ответ (Config.MaxResponseTime)
+	// 	case <-ResponseTimeout:
+	// 		return err
 
-		// молчание в эфире (Config.MaxIdleTime)
-		case <-IdleTimeout:
-			return err
+	// 	// молчание в эфире (Config.MaxIdleTime)
+	// 	case <-IdleTimeout:
+	// 		return err
 
-		}
-		continue
-	}
+	// 	}
+	// 	continue
+	// }
 
 	// соединение может завершиться следующими вариантами:
 	// 1)Истек таймаут бездействия (Config.MaxIdleTime)

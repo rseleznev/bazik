@@ -16,27 +16,15 @@ type options struct {
 	// Алгоритм балансировки
 	balancingAlg string
 	
-	// Количество попыток при неудаче прежде чем вернется ошибка
-	retryAmount int
-
-	// Количество секунд, за которое должен ответить получатель
-	// (клиент или сервер)
-	maxResponseSeconds int
-
-	// Максимальное кол-во клиентов.
-	// Когда лимит будет превышен, последующие соединения будут получать ошибку ECONNREFUSED
-	maxClientsLimit int
-
-	// Максимальное количество секунд бездействия прежде чем соединение будет закрыто
-	maxIdleSeconds int
-
-	// ...
+	config.ServerOptions
 }
 
 type handler interface {
+	InitServer(models.Server)
+	Listen(addr models.Address)
 	Accept() *models.Client
 	Close(*models.Client)
-	TCPProxy(*models.Client, *models.Server) error
+	TCPProxy(*models.Client, models.Server) error
 }
 
 func NewBalancer(conf *config.Config, h handler) Balancer {
@@ -50,7 +38,7 @@ func NewBalancer(conf *config.Config, h handler) Balancer {
 		
 		return &TCPBalancer{
 			opts: &o,
-			clients: make(map[int]*models.Client, o.maxClientsLimit),
+			clients: make(map[int]*models.Client, o.MaxClientsLimit),
 
 			handler: h,
 		}	
