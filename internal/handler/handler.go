@@ -62,6 +62,22 @@ func (h *Handler) addServerSockInPool(key string, sock int) {
 	h.serverSocksPool[key] = append(h.serverSocksPool[key], sock)
 }
 
+func (h *Handler) getServerSockFromPool(key string) int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	serverSocks := h.serverSocksPool[key]
+	if serverSocks == nil {
+		return 0
+	}
+	if len(serverSocks) == 0 {
+		return 0
+	}
+
+	s := serverSocks[len(serverSocks)-1]
+	h.serverSocksPool[key] = serverSocks[:len(serverSocks)-1]
+	return s
+}
+
 func (h *Handler) addTimeoutForSock(sock int, timeout time.Duration) {
 	h.mu.Lock()
 	h.socksTimeout[sock] = timeout
@@ -272,57 +288,84 @@ func (h *Handler) Accept() *models.Client {
 	}
 }
 
+func (h *Handler) StopAccepting() {
+	close(h.cancelCh)
+}
+
 // Close закрывает клиентский сокет без соединения с сервером,
 // т.к. лимит клиентов превышен
 func (h *Handler) Close(client *models.Client) {
 	h.sys.CloseSocket(client.Sock)
 }
 
+// TCPProxy выполняет проксирование сообщений между client и server
 func (h *Handler) TCPProxy(client *models.Client, server models.Server) error {
-	// ищем серверный сокет в пуле
-	// если нет - смотрим, можем ли создать еще подключение к серверу
-	// если может - создаем
-	// если не можем - ошибка
+	serverSock := h.getServerSockFromPool(server.GetID())
+	// В пуле нет сокетов
+	if serverSock == 0 {
+		// Создаем новое подключение
+		serverSock = h.createSock()
+		err := h.connectServerSock(serverSock, server)
+		if err != nil {
+			return err
+		}
+	}
 	
-	// добавляет clientSock в epoll на входящие
-	// добавляет serverSock в epoll на входящие
+	clientUnit := models.PollingUnit{
+		SocketFd: client.Sock,
+		EventType: "income",
+		ResultChan: make(chan error),
+	}
+	serverUnit := models.PollingUnit{
+		SocketFd: serverSock,
+		EventType: "income",
+		ResultChan: make(chan error),
+	}
 
-	// for {
-	// 	// ждет события
-	// 	select {
+	retriesAvailable := server.GetRetries()
+	for {
+		h.poller.Add(clientUnit)
+		h.poller.Add(serverUnit)
 
-	// 	// пришло сообщение от клиента
-	// 	case <-clientSock.ResultChan:
-	// 		// копирует данные из клиентского сокета в серверный
-	// 		h.sys.Splice()
+		responseDeadline := time.Now().Add(server.GetTimeout())
+		idleDeadline := time.Now().Add(server.GetIdleTimeout())
 
-	// 	// пришло сообщение от сервера
-	// 	case <-serverSock.ResultChan:
-	// 		// копирует данные из серверного сокета в клиентский
-	// 		h.sys.Splice()
+		if retriesAvailable == 0 {
+			return models.ErrRetriesFailed // надо бы понимать, кто не ответил вовремя
+		}
 
-	// 	// кто-то ждет ответ (Config.MaxResponseTime)
-	// 	case <-ResponseTimeout:
-	// 		return err
+		// ждем события
+		select {
 
-	// 	// молчание в эфире (Config.MaxIdleTime)
-	// 	case <-IdleTimeout:
-	// 		return err
+		// пришло сообщение от клиента
+		case <-clientUnit.ResultChan:
+			// копируем данные из клиентского сокета в серверный
+			h.sys.Splice()
 
-	// 	}
-	// 	continue
-	// }
+			// клиент может закрыть соединение
 
-	// соединение может завершиться следующими вариантами:
-	// 1)Истек таймаут бездействия (Config.MaxIdleTime)
-	// 2)Клиент не ответил за таймаут (Config.MaxResponseTime)
-	// 3)
-	// 3)Клиент закрыл соединение
-	// 4)Сервер закрыл соединение
-	// 5)Клиент ответил ошибкой
-	// 6)Сервер ответил ошибкой
+		// пришло сообщение от сервера
+		case <-serverUnit.ResultChan:
+			// копируем данные из серверного сокета в клиентский
+			h.sys.Splice()
 
-	return nil
+			// сервер может закрыть соединение
+
+		default:
+			if time.Now().After(responseDeadline) {
+				retriesAvailable--
+
+			}
+			if time.Now().After(idleDeadline) {
+				// проверяем, можно ли положить серверный сокет в пул
+				
+				return nil
+			}
+			runtime.Gosched()
+
+			continue
+		}
+	}
 }
 
 type serverSock struct {

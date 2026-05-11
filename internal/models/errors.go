@@ -8,4 +8,6 @@ var (
 
 	// Common
 	ErrRetriesFailed = errors.New("all retries failed")
+
+	// Server
 )

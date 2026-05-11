@@ -34,7 +34,7 @@ type ServerOptions struct {
 
 	// Максимальное кол-во клиентов.
 	// Когда лимит будет превышен, последующие соединения будут получать ошибку ECONNREFUSED
-	MaxClientsLimit int
+	MaxClientsAmount int
 
 	// Максимальное время бездействия клиента
 	MaxIdleSeconds int

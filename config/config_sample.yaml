@@ -4,7 +4,7 @@ proto: tcp
 balancing_alg: random
 retry_amount: 3
 max_response_seconds: 60
-max_clients_limit: 2000
+max_clients_amount: 2000
 max_idle_seconds: 300
 servers:
   - address: "127.0.0.1:23769"
@@ -16,7 +16,7 @@ servers:
   - address: "127.0.0.1:23769"
     retry_amount: 5
     max_response_seconds: 120
-    max_clients_limit: 500
+    max_clients_amount: 500
     max_idle_seconds: 10
 
 # # Несколько балансировщиков
@@ -27,7 +27,7 @@ servers:
 #     balancing_alg: random
 #     retry_amount: 3
 #     max_response_seconds: 60
-#     max_clients_limit: 2000
+#     max_clients_amount: 2000
 #     max_idle_seconds: 300
 #     servers:
 #       - address: "25.145.82.0:23769"
@@ -48,7 +48,7 @@ servers:
 #     balancing_alg: round robin
 #     retry_amount: 5
 #     max_response_seconds: 60
-#     max_clients_limit: 3000
+#     max_clients_amount: 3000
 #     max_idle_seconds: 100
 #     servers:
 #       - address: "25.145.82.0:23769"

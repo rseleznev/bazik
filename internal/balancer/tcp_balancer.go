@@ -41,7 +41,7 @@ func (b *TCPBalancer) Start() {
 func (b *TCPBalancer) processNewClient(client *models.Client) {
 	b.mu.Lock()
 
-	if b.clientsAmount+1 >= b.opts.MaxClientsLimit {
+	if b.clientsAmount+1 >= b.opts.MaxClientsAmount {
 		b.mu.Unlock()
 		b.handler.Close(client)
 

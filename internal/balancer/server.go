@@ -1,6 +1,7 @@
 package balancer
 
 import (
+	"sync"
 	"syscall"
 	"time"
 
@@ -9,13 +10,14 @@ import (
 
 type server struct {
 	id string
+	mu sync.RWMutex
 	
 	addr models.Address
 	activeConnectionsAmount int
 
 	retryAmount int
 	maxResponseSeconds int
-	maxClientsLimit int
+	maxClientsAmount int
 	maxIdleSeconds int
 	disableSocksPool bool
 	maxSocksPoolLen int
@@ -47,4 +49,8 @@ func (s *server) GetTimeout() time.Duration {
 
 func (s *server) GetRetries() int {
 	return s.retryAmount
+}
+
+func (s *server) GetIdleTimeout() time.Duration {
+	return time.Second*time.Duration(s.maxIdleSeconds)
 }

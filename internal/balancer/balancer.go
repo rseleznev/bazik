@@ -38,7 +38,7 @@ func NewBalancer(conf *config.Config, h handler) Balancer {
 		
 		return &TCPBalancer{
 			opts: &o,
-			clients: make(map[int]*models.Client, o.MaxClientsLimit),
+			clients: make(map[int]*models.Client, o.MaxClientsAmount),
 
 			handler: h,
 		}	

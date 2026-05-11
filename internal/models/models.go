@@ -36,4 +36,5 @@ type Server interface {
 	GetID() string
 	GetTimeout() time.Duration
 	GetRetries() int
+	GetIdleTimeout() time.Duration
 }
