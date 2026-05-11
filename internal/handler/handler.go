@@ -27,7 +27,8 @@ type poller interface {
 }
 
 type Handler struct {
-	mu sync.Mutex
+	mu sync.RWMutex
+	cancelCh chan struct{}
 
 	listeningSock int
 	serverSocksPool map[string][]int
@@ -39,13 +40,55 @@ type Handler struct {
 
 func NewHandler(p poller) *Handler {
 	return &Handler{
-		mu: sync.Mutex{},
+		mu: sync.RWMutex{},
+		cancelCh: make(chan struct{}),
 		serverSocksPool: make(map[string][]int),
 		socksTimeout: make(map[int]time.Duration),
 		sys: realSyscalls{},
 		poller: p,
 	}
 }
+
+// ------------------------------------------------
+// Методы с блокировкой
+// ------------------------------------------------
+
+func (h *Handler) addServerSockInPool(key string, sock int) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if len(h.serverSocksPool[key]) == 0 {
+		h.serverSocksPool[key] = make([]int, 0, 10)
+	}
+	h.serverSocksPool[key] = append(h.serverSocksPool[key], sock)
+}
+
+func (h *Handler) addTimeoutForSock(sock int, timeout time.Duration) {
+	h.mu.Lock()
+	h.socksTimeout[sock] = timeout
+	h.mu.Unlock()
+}
+
+func (h *Handler) getTimeoutForSock(sock int) time.Duration {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.socksTimeout[sock]
+}
+
+func (h *Handler) setListeningSock(sock int) {
+	h.mu.Lock()
+	h.listeningSock = sock
+	h.mu.Unlock()
+}
+
+func (h *Handler) getListeningSock() int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.listeningSock
+}
+
+// ------------------------------------------------
+//
+// ------------------------------------------------
 
 func (h *Handler) InitServer(server models.Server) {
 
@@ -117,7 +160,7 @@ func (h *Handler) poll(sock int, eventType string) error {
 
 	err := h.poller.Add(pUnit)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	deadline := time.Now().Add(h.getTimeoutForSock(sock))
@@ -125,7 +168,7 @@ func (h *Handler) poll(sock int, eventType string) error {
 		select {
 		case err = <-pUnit.ResultChan:
 			if err != nil {
-
+				return err
 			}
 
 		default:
@@ -145,25 +188,29 @@ func (h *Handler) poll(sock int, eventType string) error {
 	return nil
 }
 
-func (h *Handler) addServerSockInPool(key string, sock int) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if len(h.serverSocksPool[key]) == 0 {
-		h.serverSocksPool[key] = make([]int, 0, 10)
+func (h *Handler) pollWithoutTimeout(sock int, eventType string) error {
+	pUnit := models.PollingUnit{
+		SocketFd: sock,
+		EventType: eventType,
+		ResultChan: make(chan error),
 	}
-	h.serverSocksPool[key] = append(h.serverSocksPool[key], sock)
-}
 
-func (h *Handler) addTimeoutForSock(sock int, timeout time.Duration) {
-	h.mu.Lock()
-	h.socksTimeout[sock] = timeout
-	h.mu.Unlock()
-}
+	err := h.poller.Add(pUnit)
+	if err != nil {
+		return err
+	}
 
-func (h *Handler) getTimeoutForSock(sock int) time.Duration {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	return h.socksTimeout[sock]
+	select {
+	case err = <-pUnit.ResultChan:
+		if err != nil {
+			return err
+		}
+
+	case <-h.cancelCh:
+
+	}
+
+	return nil
 }
 
 
@@ -175,6 +222,9 @@ func (h *Handler) getTimeoutForSock(sock int) time.Duration {
 func (h *Handler) Listen(addr models.Address) {
 	s := h.createSock()
 
+	// потенциальная проблема с переиспользованием порта после перезапуска
+	// + возможность запустить несколько слушателей
+
 	err := h.sys.Bind(s, &syscall.SockaddrInet4{
 		Port: addr.Port,
 		Addr: addr.IP,
@@ -183,31 +233,41 @@ func (h *Handler) Listen(addr models.Address) {
 		log.Fatal(err)
 	}
 
-	err = h.sys.Listen(s, 10) // 10 - ожидающие клиенты; дать возможность настройки в конфиге?
+	err = h.sys.Listen(s, 10) // 10 - очередь ожидающих клиентов; дать возможность настройки в конфиге?
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	h.listeningSock = s
+	h.setListeningSock(s)
 }
 
 func (h *Handler) Accept() *models.Client {
 	for {
-		clientSock, clientAddrRaw, err := h.sys.Accept(h.listeningSock)
+		clientSock, clientAddrRaw, err := h.sys.Accept(h.getListeningSock())
 		if err != nil {
-			if errors.Is(err, syscall.EAGAIN) {
-				// polling
+			if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EWOULDBLOCK) {
+				err = h.pollWithoutTimeout(h.listeningSock, "income")
+				if err != nil {
+					log.Fatal(err)
+				}
+
 				continue
 			}
 			log.Fatal(err)
 		}
 
-		_ = clientAddrRaw
-		var clientAddr models.Address // преобразование clientAddrRaw
+		// проверить на реальном сисколле
+		addr, ok := clientAddrRaw.(*syscall.SockaddrInet4)
+		if !ok {
+			log.Fatal("Ошибка утверждения Sockaddr")
+		}
 
 		return &models.Client{
 			Sock: clientSock,
-			Addr: clientAddr,
+			Addr: models.Address{
+				IP: addr.Addr,
+				Port: addr.Port,
+			},
 		}
 	}
 }

@@ -13,7 +13,7 @@ import (
 )
 
 var testHandler = &Handler{
-	mu: sync.Mutex{},
+	mu: sync.RWMutex{},
 	serverSocksPool: make(map[string][]int),
 	socksTimeout: make(map[int]time.Duration),
 }
@@ -296,7 +296,7 @@ func Test_connectServerSock(t *testing.T) {
 		p mockPoller
 	}{
 		{
-			name: "success with timeout",
+			name: "success with retry",
 			expectedErr: nil,
 			server: mockServer{
 				getAddrIp4Func: func() syscall.SockaddrInet4 {
@@ -306,8 +306,6 @@ func Test_connectServerSock(t *testing.T) {
 					}
 				},
 				getRetriesFunc: func() int {return 3},
-				getIDFunc: func() string {return "testConnectServerId1"},
-				getTimeoutFunc: func() time.Duration {return time.Millisecond*100},
 			},
 			sys: mockSyscalls{
 				connectFunc: func(_ int, _ syscall.Sockaddr) error {
