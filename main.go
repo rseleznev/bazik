@@ -56,3 +56,4 @@ func (c *controller) run(conf *config.Config) {
 
 type mockPoller struct {}
 func (mp mockPoller) Add(_ models.PollingUnit) error
+func (mp mockPoller) DeleteSocketFromPolling(_ int)

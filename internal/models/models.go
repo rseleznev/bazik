@@ -34,4 +34,6 @@ type Server interface {
 	InitialPoolLen() int
 	MaxPoolLen() int
 	GetID() string
+	GetTimeout() time.Duration
+	GetRetries() int
 }

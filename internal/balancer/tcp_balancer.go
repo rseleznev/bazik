@@ -7,7 +7,6 @@ import (
 	"github.com/rseleznev/bazik/internal/models"
 )
 
-
 type tcpHandler interface {
 	InitServer(models.Server)
 	Listen(addr models.Address)

@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"log"
+	"runtime"
 	"sync"
 	"syscall"
 	"time"
@@ -22,6 +23,7 @@ type syscaller interface {
 
 type poller interface {
 	Add(models.PollingUnit) error
+	DeleteSocketFromPolling(int)
 }
 
 type Handler struct {
@@ -29,6 +31,7 @@ type Handler struct {
 
 	listeningSock int
 	serverSocksPool map[string][]int
+	socksTimeout map[int]time.Duration
 
 	sys syscaller
 	poller poller
@@ -36,7 +39,9 @@ type Handler struct {
 
 func NewHandler(p poller) *Handler {
 	return &Handler{
+		mu: sync.Mutex{},
 		serverSocksPool: make(map[string][]int),
+		socksTimeout: make(map[int]time.Duration),
 		sys: realSyscalls{},
 		poller: p,
 	}
@@ -48,8 +53,9 @@ func (h *Handler) InitServer(server models.Server) {
 	for range server.InitialPoolLen() {
 		wg.Go(func() {
 			sock := h.createSock()
-			h.connectServerSock(sock, server)
-			h.addServerSockInPool(server.GetID(), sock)	
+			h.addTimeoutForSock(sock, server.GetTimeout())
+			_ = h.connectServerSock(sock, server) // при ошибке в инициализации просто упадем
+			h.addServerSockInPool(server.GetID(), sock)
 		})
 	}
 	wg.Wait()
@@ -64,20 +70,45 @@ func (h *Handler) createSock() int {
 	return s
 }
 
-func (h *Handler) connectServerSock(sock int, server models.Server) {
+func (h *Handler) connectServerSock(sock int, server models.Server) error {
 	addr := server.GetAddrIp4()
 	
-	err := h.sys.Connect(sock, &addr)
-	if err != nil {
-		if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EINPROGRESS) {
-			h.poll(sock, "connect")
+	retriesAvailable := server.GetRetries()
+	for {
+		if retriesAvailable == 0 {
+			return models.ErrRetriesFailed
 		}
-		
-		log.Fatal(err)
+		err := h.sys.Connect(sock, &addr)
+		if err != nil {
+			if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EINPROGRESS) {
+				err = h.poll(sock, "connect")
+				if err != nil {
+					if err == models.ErrPollTimeout {
+						retriesAvailable--
+
+						continue
+					}
+					if errors.Is(err, syscall.ECONNREFUSED) {
+						retriesAvailable--
+
+						continue
+					}
+
+					return err
+				}
+
+				break
+			}
+			
+			return err
+		}
+
+		break
 	}
+	return nil
 }
 
-func (h *Handler) poll(sock int, eventType string) {
+func (h *Handler) poll(sock int, eventType string) error {
 	pUnit := models.PollingUnit{
 		SocketFd: sock,
 		EventType: eventType,
@@ -86,10 +117,32 @@ func (h *Handler) poll(sock int, eventType string) {
 
 	err := h.poller.Add(pUnit)
 	if err != nil {
-
+		log.Fatal(err)
 	}
 
-	// нужно узнавать таймаут по sock
+	deadline := time.Now().Add(h.getTimeoutForSock(sock))
+	for {
+		select {
+		case err = <-pUnit.ResultChan:
+			if err != nil {
+
+			}
+
+		default:
+			if time.Now().After(deadline) {
+				h.poller.DeleteSocketFromPolling(sock)
+
+				return models.ErrPollTimeout
+			}
+			runtime.Gosched()
+
+			continue
+		}
+
+		break
+	}
+
+	return nil
 }
 
 func (h *Handler) addServerSockInPool(key string, sock int) {
@@ -100,6 +153,24 @@ func (h *Handler) addServerSockInPool(key string, sock int) {
 	}
 	h.serverSocksPool[key] = append(h.serverSocksPool[key], sock)
 }
+
+func (h *Handler) addTimeoutForSock(sock int, timeout time.Duration) {
+	h.mu.Lock()
+	h.socksTimeout[sock] = timeout
+	h.mu.Unlock()
+}
+
+func (h *Handler) getTimeoutForSock(sock int) time.Duration {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.socksTimeout[sock]
+}
+
+
+// ------------------------------------------------
+//
+// ------------------------------------------------
+
 
 func (h *Handler) Listen(addr models.Address) {
 	s := h.createSock()

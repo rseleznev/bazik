@@ -2,6 +2,7 @@ package balancer
 
 import (
 	"syscall"
+	"time"
 
 	"github.com/rseleznev/bazik/internal/models"
 )
@@ -38,4 +39,12 @@ func (s *server) MaxPoolLen() int {
 
 func (s *server) GetID() string {
 	return s.id
+}
+
+func (s *server) GetTimeout() time.Duration {
+	return time.Second*time.Duration(s.maxResponseSeconds)
+}
+
+func (s *server) GetRetries() int {
+	return s.retryAmount
 }
