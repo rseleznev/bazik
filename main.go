@@ -5,9 +5,6 @@ import (
 	"os"
 
 	"github.com/rseleznev/bazik/config"
-	"github.com/rseleznev/bazik/internal/balancer"
-	"github.com/rseleznev/bazik/internal/handler"
-	"github.com/rseleznev/bazik/internal/models"
 )
 
 func main() {
@@ -25,8 +22,6 @@ func main() {
 
 type controller struct {
 	flags []string
-
-	blncr balancer.Balancer
 }
 
 func (c *controller) parseConfig(path string) *config.Config {
@@ -42,18 +37,4 @@ func (c *controller) parseConfig(path string) *config.Config {
 	return conf
 }
 
-func (c *controller) run(conf *config.Config) {
-	// создаем Handler
-	var p mockPoller
-	h := handler.NewHandler(p)
-	
-	// создаем Balancer
-	c.blncr = balancer.NewBalancer(conf, h)
-
-	// слушаем входящие соединения
-	c.blncr.Start()
-}
-
-type mockPoller struct {}
-func (mp mockPoller) Add(_ models.PollingUnit) error
-func (mp mockPoller) DeleteSocketFromPolling(_ int)
+func (c *controller) run(conf *config.Config) {}

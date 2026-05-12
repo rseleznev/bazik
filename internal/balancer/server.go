@@ -14,6 +14,7 @@ type server struct {
 	
 	addr models.Address
 	activeConnectionsAmount int
+	connPool []conn
 
 	retryAmount int
 	maxResponseSeconds int

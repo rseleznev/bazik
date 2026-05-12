@@ -1,75 +1,66 @@
 package balancer
 
 import (
+	"log"
 	"math/rand"
-	"sync"
 
 	"github.com/rseleznev/bazik/internal/models"
 )
 
-type tcpHandler interface {
-	InitServer(models.Server)
-	Listen(addr models.Address)
-	Accept() *models.Client
-	Close(*models.Client)
-	TCPProxy(*models.Client, models.Server) error
+type networker interface {
+	NewTCPListener() (conn, error)
+	NewConn(models.Address) (conn, error)
+}
+
+type conn interface {
+	Accept() conn
+	CopyTo(conn) error
 }
 
 type TCPBalancer struct {
-	mu sync.Mutex
 	opts *options
 	servers []*server
-	clients map[int]*models.Client
-	clientsAmount int
+	chats map[string]*chat
 
-	handler tcpHandler
+	net networker
 }
 
-func (b *TCPBalancer) Start() {
-	for _, s := range b.servers {
-		b.handler.InitServer(s)
+func (b *TCPBalancer) run() {
+	listener, err := b.net.NewTCPListener()
+	if err != nil {
+		log.Fatal(err)
 	}
-	
+
 	for {
-		client := b.handler.Accept()
-		go b.processNewClient(client)
-
-		continue
+		newClient := listener.Accept()
+		b.link(newClient)
 	}
 }
 
-func (b *TCPBalancer) processNewClient(client *models.Client) {
-	b.mu.Lock()
+func (b *TCPBalancer) link(c conn) {
+	s := b.findServer()
 
-	if b.clientsAmount+1 >= b.opts.MaxClientsAmount {
-		b.mu.Unlock()
-		b.handler.Close(client)
-
+	chat := &chat{
+		id: "client+server addr hash?",
+		client: c,
+		server: s,
+	}
+	b.chats[chat.id] = chat
+	if b.opts.enablePipeline {
+		chat.tcpPipeline()
 		return
 	}
-	b.clientsAmount++
-	b.clients[client.Sock] = client
-
-	// подбираем сервер для клиента
-	s := b.findServer()
-	b.mu.Unlock()
-
-	err := b.handler.TCPProxy(client, s)
-	if err != nil {
-		// если сервер упал - выдаем новый
-
-		// если клиент не ответил за отведенный таймаут?
-	}	
+	chat.tcpProxy()
 }
 
-func (b *TCPBalancer) findServer() *server {
+func (b *TCPBalancer) findServer() conn {
 	switch b.opts.balancingAlg {
 	case "random":
 		n := rand.Intn(len(b.servers))
-		return b.servers[n]
+		return b.servers[n].connPool[0]
 
 	default:
-		return &server{}
+		return b.servers[0].connPool[0]
 
 	}
 }
