@@ -18,7 +18,8 @@ type syscaller interface {
 	Listen(int, int) error
 	Accept(int) (int, syscall.Sockaddr, error)
 	Connect(int, syscall.Sockaddr) error
-	Splice()
+	Splice(writer, reader int) (int64, error)
+	Pipe() (int, int, error)
 }
 
 type poller interface {
@@ -43,7 +44,7 @@ func NewHandler(p poller) *Handler {
 		mu: sync.RWMutex{},
 		cancelCh: make(chan struct{}),
 		serverSocksPool: make(map[string][]int),
-		socksTimeout: make(map[int]time.Duration),
+		// socksTimeout: make(map[int]time.Duration),
 		sys: realSyscalls{},
 		poller: p,
 	}
@@ -78,17 +79,17 @@ func (h *Handler) getServerSockFromPool(key string) int {
 	return s
 }
 
-func (h *Handler) addTimeoutForSock(sock int, timeout time.Duration) {
-	h.mu.Lock()
-	h.socksTimeout[sock] = timeout
-	h.mu.Unlock()
-}
+// func (h *Handler) addTimeoutForSock(sock int, timeout time.Duration) {
+// 	h.mu.Lock()
+// 	h.socksTimeout[sock] = timeout
+// 	h.mu.Unlock()
+// }
 
-func (h *Handler) getTimeoutForSock(sock int) time.Duration {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-	return h.socksTimeout[sock]
-}
+// func (h *Handler) getTimeoutForSock(sock int) time.Duration {
+// 	h.mu.RLock()
+// 	defer h.mu.RUnlock()
+// 	return h.socksTimeout[sock]
+// }
 
 func (h *Handler) setListeningSock(sock int) {
 	h.mu.Lock()
@@ -112,8 +113,11 @@ func (h *Handler) InitServer(server models.Server) {
 	for range server.InitialPoolLen() {
 		wg.Go(func() {
 			sock := h.createSock()
-			h.addTimeoutForSock(sock, server.GetTimeout())
-			_ = h.connectServerSock(sock, server) // при ошибке в инициализации просто упадем
+			// h.addTimeoutForSock(sock, server.GetTimeout())
+			err := h.connectServerSock(sock, server)
+			if err != nil {
+				log.Fatal(err)
+			}
 			h.addServerSockInPool(server.GetID(), sock)
 		})
 	}
@@ -135,12 +139,12 @@ func (h *Handler) connectServerSock(sock int, server models.Server) error {
 	retriesAvailable := server.GetRetries()
 	for {
 		if retriesAvailable == 0 {
-			return models.ErrRetriesFailed
+			return models.ErrResponseTimeout
 		}
 		err := h.sys.Connect(sock, &addr)
 		if err != nil {
 			if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EINPROGRESS) {
-				err = h.poll(sock, "connect")
+				err = h.pollWithTimeout(sock, "connect", server.GetTimeout())
 				if err != nil {
 					if err == models.ErrPollTimeout {
 						retriesAvailable--
@@ -167,42 +171,42 @@ func (h *Handler) connectServerSock(sock int, server models.Server) error {
 	return nil
 }
 
-func (h *Handler) poll(sock int, eventType string) error {
-	pUnit := models.PollingUnit{
-		SocketFd: sock,
-		EventType: eventType,
-		ResultChan: make(chan error),
-	}
+// func (h *Handler) poll(sock int, eventType string) error {
+// 	pUnit := models.PollingUnit{
+// 		SocketFd: sock,
+// 		EventType: eventType,
+// 		ResultChan: make(chan error),
+// 	}
 
-	err := h.poller.Add(pUnit)
-	if err != nil {
-		return err
-	}
+// 	err := h.poller.Add(pUnit)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	deadline := time.Now().Add(h.getTimeoutForSock(sock))
-	for {
-		select {
-		case err = <-pUnit.ResultChan:
-			if err != nil {
-				return err
-			}
+// 	deadline := time.Now().Add(h.getTimeoutForSock(sock))
+// 	for {
+// 		select {
+// 		case err = <-pUnit.ResultChan:
+// 			if err != nil {
+// 				return err
+// 			}
 
-		default:
-			if time.Now().After(deadline) {
-				h.poller.DeleteSocketFromPolling(sock)
+// 		default:
+// 			if time.Now().After(deadline) {
+// 				h.poller.DeleteSocketFromPolling(sock)
 
-				return models.ErrPollTimeout
-			}
-			runtime.Gosched()
+// 				return models.ErrPollTimeout
+// 			}
+// 			runtime.Gosched()
 
-			continue
-		}
+// 			continue
+// 		}
 
-		break
-	}
+// 		break
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 func (h *Handler) pollWithoutTimeout(sock int, eventType string) error {
 	pUnit := models.PollingUnit{
@@ -224,6 +228,43 @@ func (h *Handler) pollWithoutTimeout(sock int, eventType string) error {
 
 	case <-h.cancelCh:
 
+	}
+
+	return nil
+}
+
+func (h *Handler) pollWithTimeout(sock int, eventType string, t time.Duration) error {
+	pUnit := models.PollingUnit{
+		SocketFd: sock,
+		EventType: eventType,
+		ResultChan: make(chan error),
+	}
+
+	err := h.poller.Add(pUnit)
+	if err != nil {
+		return err
+	}
+
+	deadline := time.Now().Add(t)
+	for {
+		select {
+		case err = <-pUnit.ResultChan:
+			if err != nil {
+				return err
+			}
+
+		default:
+			if time.Now().After(deadline) {
+				h.poller.DeleteSocketFromPolling(sock)
+
+				return models.ErrPollTimeout
+			}
+			runtime.Gosched()
+
+			continue
+		}
+
+		break
 	}
 
 	return nil
@@ -311,65 +352,84 @@ func (h *Handler) TCPProxy(client *models.Client, server models.Server) error {
 		}
 	}
 	
-	clientUnit := models.PollingUnit{
-		SocketFd: client.Sock,
-		EventType: "income",
-		ResultChan: make(chan error),
+	// создаем 2 pipe
+	rdEndClientPipe, wrEndClientPipe, err := h.sys.Pipe()
+	if err != nil {
+		return err
 	}
-	serverUnit := models.PollingUnit{
-		SocketFd: serverSock,
-		EventType: "income",
-		ResultChan: make(chan error),
+	rdEndServerPipe, wrEndServerPipe, err := h.sys.Pipe()
+	if err != nil {
+		return err
 	}
 
-	retriesAvailable := server.GetRetries()
+	// последовательная обработка
 	for {
-		h.poller.Add(clientUnit)
-		h.poller.Add(serverUnit)
-
-		responseDeadline := time.Now().Add(server.GetTimeout())
-		idleDeadline := time.Now().Add(server.GetIdleTimeout())
-
-		if retriesAvailable == 0 {
-			return models.ErrRetriesFailed // надо бы понимать, кто не ответил вовремя
-		}
-
-		// ждем события
-		select {
-
-		// пришло сообщение от клиента
-		case <-clientUnit.ResultChan:
-			// копируем данные из клиентского сокета в серверный
-			h.sys.Splice()
-
-			// клиент может закрыть соединение
-
-		// пришло сообщение от сервера
-		case <-serverUnit.ResultChan:
-			// копируем данные из серверного сокета в клиентский
-			h.sys.Splice()
-
-			// сервер может закрыть соединение
-
-		default:
-			if time.Now().After(responseDeadline) {
-				retriesAvailable--
-
-			}
-			if time.Now().After(idleDeadline) {
-				// проверяем, можно ли положить серверный сокет в пул
-				
+		err = h.pollWithTimeout(client.Sock, "income", server.GetIdleTimeout())
+		if err != nil {
+			// истекло время бездействия
+			if err == models.ErrPollTimeout {
 				return nil
 			}
-			runtime.Gosched()
+			// клиент может закрыть соединение,
+			// тогда надо закрыть соединение с сервером (если не будем класть сокет в пул)
 
-			continue
+			return err
 		}
-	}
-}
 
-type serverSock struct {
-	status string // ready, running
-	sock int
-	lastActivity time.Time
+		_, err = h.sys.Splice(client.Sock, wrEndClientPipe)
+		if err != nil {
+			if errors.Is(err, syscall.EAGAIN) {
+				// такого быть не должно
+				// (но при пайплайнинге может)
+			}
+			return err
+		}
+
+		for {
+			_, err = h.sys.Splice(rdEndClientPipe, serverSock)
+			if err != nil {
+				if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EWOULDBLOCK) {
+					err = h.pollWithTimeout(serverSock, "outcome", server.GetTimeout())
+					if err != nil {
+						//
+					}
+				}
+				return err
+			}
+			break
+		}
+
+		for {
+			err = h.pollWithTimeout(serverSock, "income", server.GetTimeout())
+			if err != nil {
+				//
+			}
+			break
+		}
+
+		_, err = h.sys.Splice(serverSock, wrEndServerPipe)
+		if err != nil {
+			if errors.Is(err, syscall.EAGAIN) {
+				// такого быть не должно
+				// (но при пайплайнинге может)
+			}
+			return err
+		}
+		
+		for {
+			_, err = h.sys.Splice(rdEndServerPipe, client.Sock)
+			if err != nil {
+				if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EWOULDBLOCK) {
+					err = h.pollWithTimeout(client.Sock, "outcome", server.GetTimeout())
+					if err != nil {
+						//
+					}
+				}
+				return err
+			}
+			break
+		}
+
+		continue
+	}
 }

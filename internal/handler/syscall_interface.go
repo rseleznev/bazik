@@ -29,6 +29,13 @@ func (r realSyscalls) Connect(sock int, addr syscall.Sockaddr) error {
 	return syscall.Connect(sock, addr)
 }
 
-func (r realSyscalls) Splice() {
+func (r realSyscalls) Splice(writer, reader int) (int64, error) { // возможно что-то перепутано
+	return syscall.Splice(writer, nil, reader, nil, 10, 0) // длину нужно откуда-то брать
+}
 
+func (r realSyscalls) Pipe() (int, int, error) {
+	fds := []int{}
+	err := syscall.Pipe2(fds, syscall.O_NONBLOCK)
+	
+	return fds[0], fds[1], err
 }
