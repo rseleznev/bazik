@@ -21,6 +21,7 @@ type socket struct {
 
 	pipeWriteFd int
 	pipeReadFd int
+	dataInPipe bool
 	
 	sys syscaller
 	poller poller
@@ -133,13 +134,14 @@ func (s *socket) CopyTo(dst *socket) error {
 			return err
 		}
 	}
-
-	// какие-то данные могут остаться в пайпе с прошлой операции
+	if s.hasDataInPipe() {
+		// очищаем пайп?
+	}
 	
 	err := s.poll("income")
 	if err != nil {
 		if err == models.ErrPollTimeout {
-			return models.ErrTimeout
+			return models.ErrIdleTimeout
 		}
 		if s.isLogActivity() {
 			s.updateLastActivity()
@@ -155,11 +157,12 @@ func (s *socket) CopyTo(dst *socket) error {
 	if err != nil {
 		return err
 	}
-
+	s.newDataInPipe()
 	err = s.transfer(s.getPipeReadFd(), dst.getFd())
 	if err != nil {
 		return err
 	}
+	s.noDataInPipe()
 	
 	return nil
 }
@@ -217,4 +220,16 @@ func (s *socket) makePipe() error {
 	s.pipeWriteFd = w
 
 	return nil
+}
+
+func (s *socket) hasDataInPipe() bool {
+	return s.dataInPipe
+}
+
+func (s *socket) newDataInPipe() {
+	s.dataInPipe = true
+}
+
+func (s *socket) noDataInPipe() {
+	s.dataInPipe = false
 }

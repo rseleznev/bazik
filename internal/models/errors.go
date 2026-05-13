@@ -8,6 +8,7 @@ var (
 
 	// Common
 	ErrTimeout = errors.New("timeout reached")
+	ErrIdleTimeout = errors.New("idle timeout reached") // таймаут бездействия
 
 	// Server
 )

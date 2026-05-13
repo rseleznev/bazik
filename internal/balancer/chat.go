@@ -29,6 +29,7 @@ func (c *chat) tcpProxy() {
 			err := c.client.CopyTo(c.server)
 			if err != nil {
 				// ??
+				// также нужно иметь возможность тормознуть другой поток
 			}
 		}
 	}()
@@ -38,6 +39,7 @@ func (c *chat) tcpProxy() {
 			err := c.server.CopyTo(c.client)
 			if err != nil {
 				// ??
+				// также нужно иметь возможность тормознуть другой поток
 			}
 		}
 	}()
