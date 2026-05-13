@@ -46,10 +46,6 @@ func (b *TCPBalancer) link(c conn) {
 		server: s,
 	}
 	b.chats[chat.id] = chat
-	if b.opts.enablePipeline {
-		chat.tcpPipeline()
-		return
-	}
 	chat.tcpProxy()
 }
 

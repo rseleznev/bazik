@@ -7,20 +7,6 @@ type chat struct {
 }
 
 func (c *chat) tcpProxy() {
-	for {
-		err := c.client.CopyTo(c.server)
-		if err != nil {
-			// ??
-		}
-
-		err = c.server.CopyTo(c.client)
-		if err != nil {
-			// ??
-		}
-	}
-}
-
-func (c *chat) tcpPipeline() {
 	go func() {
 		for {
 			err := c.client.CopyTo(c.server)

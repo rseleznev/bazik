@@ -14,7 +14,6 @@ type options struct {
 
 	// Алгоритм балансировки
 	balancingAlg string
-	enablePipeline bool
 	
 	config.ServerOptions
 }
