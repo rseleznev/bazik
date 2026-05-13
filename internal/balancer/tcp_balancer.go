@@ -3,6 +3,7 @@ package balancer
 import (
 	"log"
 	"math/rand"
+	"time"
 
 	"github.com/rseleznev/bazik/internal/models"
 )
@@ -15,6 +16,10 @@ type networker interface {
 type conn interface {
 	Accept() conn
 	CopyTo(conn) error
+	SetIdleDeadline(time.Time)
+	LogActivity()
+	LastActivity() time.Time
+	SetLastActivity(time.Time)
 }
 
 type TCPBalancer struct {

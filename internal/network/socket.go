@@ -3,6 +3,7 @@ package network
 import (
 	"errors"
 	"runtime"
+	"sync"
 	"syscall"
 	"time"
 
@@ -11,7 +12,12 @@ import (
 
 type socket struct {
 	fd int
-	responseTimeout time.Duration
+	mu sync.RWMutex
+	timeout time.Duration
+	idleDeadline time.Time
+
+	logActivity bool
+	lastActivity time.Time
 
 	pipeWriteFd int
 	pipeReadFd int
@@ -20,8 +26,46 @@ type socket struct {
 	poller poller
 }
 
+func (s *socket) LogActivity() {
+	s.logActivity = true
+	s.updateLastActivity()
+}
+
+func (s *socket) LastActivity() time.Time {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.lastActivity
+}
+
+func (s *socket) SetLastActivity(t time.Time) {
+	s.mu.Lock()
+	s.lastActivity = t
+	s.mu.Unlock()
+}
+
+func (s *socket) SetIdleDeadline(t time.Time) {
+	s.mu.Lock()
+	s.idleDeadline = t
+	s.mu.Unlock()
+}
+
+func (s *socket) getIdleDeadline() time.Time {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.idleDeadline
+}
+
+func (s *socket) updateLastActivity() {
+	s.mu.Lock()
+	s.lastActivity = time.Now()
+	s.mu.Unlock()
+}
+
 func (s *socket) CopyTo(dst *socket) error {
-	err := s.waitIncome()
+	err := s.poll("income")
+	if s.isLogActivity() {
+		s.updateLastActivity()
+	}
 	if err != nil {
 		return err // ?
 	}
@@ -40,10 +84,10 @@ func (s *socket) CopyTo(dst *socket) error {
 }
 
 // переделать на функцию вместо метода?
-func (s *socket) waitIncome() error {
+func (s *socket) poll(eventType string) error {
 	pUnit := models.PollingUnit{
 		SocketFd: s.getFd(),
-		EventType: "income",
+		EventType: eventType,
 		ResultChan: make(chan error),
 	}
 	err := s.poller.Add(pUnit)
@@ -51,7 +95,6 @@ func (s *socket) waitIncome() error {
 		return err
 	}
 
-	deadline := time.Now().Add(s.getTimeout())
 	for {
 		select {
 		case err = <-pUnit.ResultChan:
@@ -61,7 +104,7 @@ func (s *socket) waitIncome() error {
 			return nil
 
 		default:
-			if time.Now().After(deadline) {
+			if time.Now().After(s.getIdleDeadline()) {
 				s.poller.DeleteSocketFromPolling(s.getFd())
 
 				return models.ErrResponseTimeout
@@ -95,7 +138,7 @@ func (s *socket) getFd() int {
 }
 
 func (s *socket) getTimeout() time.Duration {
-	return s.responseTimeout
+	return s.timeout
 }
 
 func (s *socket) getPipeWriteFd() int {
@@ -104,4 +147,8 @@ func (s *socket) getPipeWriteFd() int {
 
 func (s *socket) getPipeReadFd() int {
 	return s.pipeReadFd
+}
+
+func (s *socket) isLogActivity() bool {
+	return s.logActivity
 }
