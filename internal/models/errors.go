@@ -7,7 +7,7 @@ var (
 	ErrPollTimeout = errors.New("polling timeout")
 
 	// Common
-	ErrResponseTimeout = errors.New("response timeout reached")
+	ErrTimeout = errors.New("timeout reached")
 
 	// Server
 )

@@ -1,6 +1,14 @@
 package network
 
-import "syscall"
+import (
+	"syscall"
+)
+
+const (
+	SPLICE_F_MORE = 0x4
+	SPLICE_F_MOVE = 0x1
+	SPLICE_F_NONBLOCK = 0x2
+)
 
 type syscaller interface {
 	NewSocket(int, int, int) (int, error)

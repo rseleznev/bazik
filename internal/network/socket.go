@@ -61,29 +61,6 @@ func (s *socket) updateLastActivity() {
 	s.mu.Unlock()
 }
 
-func (s *socket) CopyTo(dst *socket) error {
-	err := s.poll("income")
-	if s.isLogActivity() {
-		s.updateLastActivity()
-	}
-	if err != nil {
-		return err // ?
-	}
-
-	err = s.transfer(s.getFd(), s.getPipeWriteFd())
-	if err != nil {
-		return err
-	}
-
-	err = s.transfer(s.getPipeReadFd(), dst.getFd())
-	if err != nil {
-		return err
-	}
-	
-	return nil
-}
-
-// переделать на функцию вместо метода?
 func (s *socket) poll(eventType string) error {
 	pUnit := models.PollingUnit{
 		SocketFd: s.getFd(),
@@ -99,7 +76,7 @@ func (s *socket) poll(eventType string) error {
 		select {
 		case err = <-pUnit.ResultChan:
 			if err != nil {
-				// ?
+				return err
 			}
 			return nil
 
@@ -107,7 +84,7 @@ func (s *socket) poll(eventType string) error {
 			if time.Now().After(s.getIdleDeadline()) {
 				s.poller.DeleteSocketFromPolling(s.getFd())
 
-				return models.ErrResponseTimeout
+				return models.ErrPollTimeout
 			}
 			runtime.Gosched()
 			continue
@@ -116,12 +93,86 @@ func (s *socket) poll(eventType string) error {
 	}
 }
 
+func (s *socket) pollFdWithTimeout(fd int, t time.Duration, eventType string) error {
+	pUnit := models.PollingUnit{
+		SocketFd: fd,
+		EventType: eventType,
+		ResultChan: make(chan error),
+	}
+	err := s.poller.Add(pUnit)
+	if err != nil {
+		return err
+	}
+
+	deadline := time.Now().Add(t)
+	for {
+		select {
+		case err = <-pUnit.ResultChan:
+			if err != nil {
+				return err
+			}
+			return nil
+
+		default:
+			if time.Now().After(deadline) {
+				s.poller.DeleteSocketFromPolling(fd)
+
+				return models.ErrPollTimeout
+			}
+			runtime.Gosched()
+			continue
+
+		}
+	}
+}
+
+func (s *socket) CopyTo(dst *socket) error {
+	if !s.hasPipe() {
+		err := s.makePipe()
+		if err != nil {
+			return err
+		}
+	}
+
+	// какие-то данные могут остаться в пайпе с прошлой операции
+	
+	err := s.poll("income")
+	if err != nil {
+		if err == models.ErrPollTimeout {
+			return models.ErrTimeout
+		}
+		if s.isLogActivity() {
+			s.updateLastActivity()
+		}
+		
+		return err
+	}
+	if s.isLogActivity() {
+		s.updateLastActivity()
+	}
+
+	err = s.transfer(s.getFd(), s.getPipeWriteFd())
+	if err != nil {
+		return err
+	}
+
+	err = s.transfer(s.getPipeReadFd(), dst.getFd())
+	if err != nil {
+		return err
+	}
+	
+	return nil
+}
+
 func (s *socket) transfer(src, dst int) error {
 	for {
 		_, err := s.sys.Splice(src, dst)
 		if err != nil {
 			if errors.Is(err, syscall.EAGAIN) {
-				// poll
+				err = s.pollFdWithTimeout(dst, s.getTimeout(), "outcome")
+				if err == models.ErrPollTimeout {
+					return models.ErrTimeout
+				}
 
 				continue
 			}
@@ -151,4 +202,19 @@ func (s *socket) getPipeReadFd() int {
 
 func (s *socket) isLogActivity() bool {
 	return s.logActivity
+}
+
+func (s *socket) hasPipe() bool {
+	return s.getPipeWriteFd() != 0 && s.getPipeReadFd() != 0
+}
+
+func (s *socket) makePipe() error {
+	r, w, err := s.sys.Pipe()
+	if err != nil {
+		return err
+	}
+	s.pipeReadFd = r
+	s.pipeWriteFd = w
+
+	return nil
 }
