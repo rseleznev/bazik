@@ -1,6 +1,17 @@
-package handler
+package network
 
 import "syscall"
+
+type syscaller interface {
+	NewSocket(int, int, int) (int, error)
+	CloseSocket(int) error
+	Bind(int, syscall.Sockaddr) error
+	Listen(int, int) error
+	Accept(int) (int, syscall.Sockaddr, error)
+	Connect(int, syscall.Sockaddr) error
+	Splice(writer, reader int) (int64, error)
+	Pipe() (int, int, error)
+}
 
 type realSyscalls struct {
 }
