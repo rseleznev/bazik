@@ -11,6 +11,7 @@ import (
 type chat struct {
 	id string
 	mu sync.RWMutex
+	availableRetries int
 	paused bool
 	ended bool
 	idleTimeout time.Duration
@@ -52,10 +53,12 @@ func (c *chat) end() {
 	c.mu.Unlock()
 }
 
-func (c *chat) tcpProxy() error {
+func (c *chat) tcpProxy() (int, error) {
 	if c.serverErrsOccurredAmount() >= 3 {
 		// ограничение, чтобы не получить бесконечный цикл,
 		// когда клиент получает ошибку на нескольких серверах
+
+		// нужно решить, кто будет следить за доступными ретраями
 	}
 	
 	c.client.LogActivity()
@@ -104,13 +107,14 @@ func (c *chat) tcpProxy() error {
 				// в случае клиентской ошибки нам нечего делать с клиентом,
 				// поэтому мы просто считаем соединение (чат) завершенным
 				c.client.Close()
+
 				// серверный сокет не закрываем, т.к. можем вернуть его в пул
 				// и переиспользовать
 				break
 			}
 			c.server.Close()
 			c.serverErrOccurred()
-			return c.getServerErr()
+			return c.getAvailableRetries(), c.getServerErr()
 		}
 		
 		clientLastActivity := c.client.LastActivity()
@@ -128,7 +132,14 @@ func (c *chat) tcpProxy() error {
 		runtime.Gosched()
 	}
 
-	return nil
+	return c.getAvailableRetries(), nil
+}
+
+// close останавливает чат, если его нужно остановить из вне (из балансировщика)
+func (c *chat) close() {
+	c.end()
+	c.client.Close()
+	c.server.Close()
 }
 
 func (c *chat) getIdleTimeout() time.Duration {
@@ -165,4 +176,8 @@ func (c *chat) serverErrOccurred() {
 
 func (c *chat) serverErrsOccurredAmount() int {
 	return c.serverErrsOccurred
+}
+
+func (c *chat) getAvailableRetries() int {
+	return c.availableRetries - c.serverErrsOccurred
 }

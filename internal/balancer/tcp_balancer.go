@@ -70,10 +70,19 @@ func (b *TCPBalancer) findServer() conn {
 }
 
 func (b *TCPBalancer) process(c *chat) {
-	err := c.tcpProxy()
-	if err != nil {
-		
+	for {
+		retriesAvalable, err := c.tcpProxy()
+		if err != nil {
+			if retriesAvalable > 0 {
+				newServer := b.findServer()
+				c.server = newServer
+				continue
+			}
+			c.close()
+		}
+		break
 	}
-
-	// убираем чат из b.chats
+	delete(b.chats, c.id)
+	// возвращаем серверный сокет в буфер
+	// как имея сокет найти сервер?
 }
