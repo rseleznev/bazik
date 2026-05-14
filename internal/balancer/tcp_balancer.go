@@ -15,6 +15,7 @@ type networker interface {
 
 type conn interface {
 	Accept() conn
+	Close()
 	CopyTo(conn) error
 	SetIdleDeadline(time.Time)
 	LogActivity()
@@ -38,11 +39,13 @@ func (b *TCPBalancer) run() {
 
 	for {
 		newClient := listener.Accept()
-		b.link(newClient)
+		go b.link(newClient)
 	}
 }
 
 func (b *TCPBalancer) link(c conn) {
+	// проверяем, можем ли принять клиента
+	
 	s := b.findServer()
 
 	chat := &chat{
@@ -51,7 +54,7 @@ func (b *TCPBalancer) link(c conn) {
 		server: s,
 	}
 	b.chats[chat.id] = chat
-	chat.tcpProxy()
+	b.process(chat)
 }
 
 func (b *TCPBalancer) findServer() conn {
@@ -64,4 +67,13 @@ func (b *TCPBalancer) findServer() conn {
 		return b.servers[0].connPool[0]
 
 	}
+}
+
+func (b *TCPBalancer) process(c *chat) {
+	err := c.tcpProxy()
+	if err != nil {
+		
+	}
+
+	// убираем чат из b.chats
 }
