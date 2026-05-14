@@ -12,7 +12,7 @@ const (
 
 type syscaller interface {
 	NewSocket(int, int, int) (int, error)
-	CloseSocket(int) error
+	Close(int) error
 	Bind(int, syscall.Sockaddr) error
 	Listen(int, int) error
 	Accept(int) (int, syscall.Sockaddr, error)
@@ -28,8 +28,8 @@ func (r realSyscalls) NewSocket(d int, t int, p int) (int, error) {
 	return syscall.Socket(d, t, p)
 }
 
-func (r realSyscalls) CloseSocket(sock int) error {
-	return syscall.Close(sock)
+func (r realSyscalls) Close(fd int) error {
+	return syscall.Close(fd)
 }
 
 func (r realSyscalls) Bind(sock int, addr syscall.Sockaddr) error {

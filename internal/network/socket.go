@@ -128,14 +128,11 @@ func (s *socket) pollFdWithTimeout(fd int, t time.Duration, eventType string) er
 }
 
 func (s *socket) CopyTo(dst *socket) error {
-	if !s.hasPipe() {
+	if !s.hasPipe() || s.hasDataInPipe() {
 		err := s.makePipe()
 		if err != nil {
 			return err
 		}
-	}
-	if s.hasDataInPipe() {
-		// очищаем пайп?
 	}
 	
 	err := s.poll("income")
@@ -185,6 +182,10 @@ func (s *socket) transfer(src, dst int) error {
 	}
 	
 	return nil
+}
+
+func (s *socket) Close() {
+	s.sys.Close(s.getFd())
 }
 
 func (s *socket) getFd() int {
