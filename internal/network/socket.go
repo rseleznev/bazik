@@ -186,6 +186,8 @@ func (s *socket) transfer(src, dst int) error {
 
 func (s *socket) Close() {
 	s.sys.Close(s.getFd())
+	s.sys.Close(s.getPipeWriteFd())
+	s.sys.Close(s.getPipeReadFd())
 }
 
 func (s *socket) getFd() int {
