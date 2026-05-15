@@ -144,6 +144,7 @@ func (b *TCPBalancer) storeConn(c conn) {
 	for _, s := range b.servers {
 		if s.addr.Raw == addr {
 			s.storeConn(c)
+			break
 		}
 	}
 }
