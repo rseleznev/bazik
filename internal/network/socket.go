@@ -13,6 +13,7 @@ import (
 type socket struct {
 	fd int
 	mu sync.RWMutex
+	addr models.Address
 	timeout time.Duration
 	idleDeadline time.Time
 
@@ -191,6 +192,10 @@ func (s *socket) Close() {
 	s.sys.Close(s.getFd())
 	s.sys.Close(s.getPipeWriteFd())
 	s.sys.Close(s.getPipeReadFd())
+}
+
+func (s *socket) GetRawAddr() string {
+	return s.addr.Raw
 }
 
 func (s *socket) getFd() int {

@@ -12,4 +12,5 @@ var (
 	ErrNoRetriesAvailable = errors.New("no more retries available")
 
 	// Server
+	ErrNoConnsAvailable = errors.New("no more conns to the server available")
 )

@@ -20,5 +20,9 @@ func (n *Net) NewTCPListener() (*socket, error) {
 }
 
 func (n *Net) NewConn(addr models.Address) (*socket, error) {
+	// создаем сокет
+
+	// подключаемся
+	
 	return &socket{}, nil
 }

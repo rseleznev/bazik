@@ -59,7 +59,7 @@ func (c *chat) tcpProxy() (bool, error) {
 	// ограничение, чтобы не получить бесконечный цикл,
 	// когда клиент получает ошибку на нескольких серверах
 	if !c.isRetryAvailable() {
-		
+		return c.isRetryAvailable(), models.ErrNoRetriesAvailable
 	}
 	
 	c.client.LogActivity()
@@ -107,6 +107,10 @@ func (c *chat) tcpProxy() (bool, error) {
 			if c.isClientErr() {
 				// в случае клиентской ошибки нам нечего делать с клиентом,
 				// поэтому мы просто считаем соединение (чат) завершенным
+
+				// серверный сокет закрываем для подстраховки
+				c.server.Close() 
+
 				break
 			}
 			c.server.Close()
