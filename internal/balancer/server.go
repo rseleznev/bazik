@@ -1,6 +1,7 @@
 package balancer
 
 import (
+	"sync/atomic"
 
 	"github.com/rseleznev/bazik/internal/models"
 )
@@ -11,7 +12,7 @@ type server struct {
 	net networker
 	
 	addr models.Address
-	activeConnectionsAmount int
+	activeConnectionsAmount atomic.Int32
 	connPool chan conn
 
 	retryAmount int
@@ -51,19 +52,28 @@ func (s *server) newConn() (conn, error) {
 
 func (s *server) getConn() (conn, error) {
 	if s.disableSocksPool {
-		c, err := s.newConn()
-		if err != nil {
-			return nil, err
+		if int(s.activeConnectionsAmount.Load()) < s.maxClientsAmount {
+			c, err := s.newConn()
+			if err != nil {
+				return nil, err
+			}
+			return c, nil
 		}
-		return c, nil
+		return nil, models.ErrNoConnsAvailable
 	}
 	
 	if len(s.connPool) <= 0 {
+		if int(s.activeConnectionsAmount.Load()) < s.maxClientsAmount {
+			c, err := s.newConn()
+			if err != nil {
+				return nil, err
+			}
+			return c, nil
+		}
 		return nil, models.ErrNoConnsAvailable
 	}
-	c := <-s.connPool
 
-	return c, nil
+	return <-s.connPool, nil
 }
 
 func (s *server) storeConn(c conn) {
