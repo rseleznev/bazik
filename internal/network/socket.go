@@ -129,6 +129,9 @@ func (s *socket) pollFdWithTimeout(fd int, t time.Duration, eventType string) er
 
 func (s *socket) CopyTo(dst *socket) error {
 	if !s.hasPipe() || s.hasDataInPipe() {
+		if s.hasDataInPipe() {
+			s.closePipe()
+		}
 		err := s.makePipe()
 		if err != nil {
 			return err
@@ -223,6 +226,11 @@ func (s *socket) makePipe() error {
 	s.pipeWriteFd = w
 
 	return nil
+}
+
+func (s *socket) closePipe() {
+	s.sys.Close(s.getPipeWriteFd())
+	s.sys.Close(s.getPipeReadFd())
 }
 
 func (s *socket) hasDataInPipe() bool {
