@@ -11,7 +11,7 @@ import (
 type chat struct {
 	id string
 	mu sync.RWMutex
-	availableRetries int
+	retriesAvailable int
 	paused bool
 	ended bool
 	idleTimeout time.Duration
@@ -53,12 +53,13 @@ func (c *chat) end() {
 	c.mu.Unlock()
 }
 
-func (c *chat) tcpProxy() (int, error) {
-	if c.serverErrsOccurredAmount() >= 3 {
-		// ограничение, чтобы не получить бесконечный цикл,
-		// когда клиент получает ошибку на нескольких серверах
-
-		// нужно решить, кто будет следить за доступными ретраями
+// tcpProxy проксирует TCP-трафик в режиме zero-copy.
+// Возвращает флаг, доступны ли ретраи
+func (c *chat) tcpProxy() (bool, error) {
+	// ограничение, чтобы не получить бесконечный цикл,
+	// когда клиент получает ошибку на нескольких серверах
+	if !c.isRetryAvailable() {
+		
 	}
 	
 	c.client.LogActivity()
@@ -106,15 +107,11 @@ func (c *chat) tcpProxy() (int, error) {
 			if c.isClientErr() {
 				// в случае клиентской ошибки нам нечего делать с клиентом,
 				// поэтому мы просто считаем соединение (чат) завершенным
-				c.client.Close()
-
-				// серверный сокет не закрываем, т.к. можем вернуть его в пул
-				// и переиспользовать
 				break
 			}
 			c.server.Close()
 			c.serverErrOccurred()
-			return c.getAvailableRetries(), c.getServerErr()
+			return c.isRetryAvailable(), c.getServerErr()
 		}
 		
 		clientLastActivity := c.client.LastActivity()
@@ -131,8 +128,12 @@ func (c *chat) tcpProxy() (int, error) {
 		}
 		runtime.Gosched()
 	}
+	c.client.Close()
 
-	return c.getAvailableRetries(), nil
+	// серверный сокет не закрываем, т.к. можем вернуть его в пул
+	// и переиспользовать
+
+	return c.isRetryAvailable(), nil
 }
 
 // close останавливает чат, если его нужно остановить из вне (из балансировщика)
@@ -174,10 +175,6 @@ func (c *chat) serverErrOccurred() {
 	c.serverErrsOccurred++
 }
 
-func (c *chat) serverErrsOccurredAmount() int {
-	return c.serverErrsOccurred
-}
-
-func (c *chat) getAvailableRetries() int {
-	return c.availableRetries - c.serverErrsOccurred
+func (c *chat) isRetryAvailable() bool {
+	return (c.retriesAvailable - c.serverErrsOccurred) > 0
 }

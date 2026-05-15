@@ -71,9 +71,9 @@ func (b *TCPBalancer) findServer() conn {
 
 func (b *TCPBalancer) process(c *chat) {
 	for {
-		retriesAvalable, err := c.tcpProxy()
+		canRetry, err := c.tcpProxy()
 		if err != nil {
-			if retriesAvalable > 0 {
+			if canRetry {
 				newServer := b.findServer()
 				c.server = newServer
 				continue

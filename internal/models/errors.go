@@ -9,6 +9,7 @@ var (
 	// Common
 	ErrTimeout = errors.New("timeout reached")
 	ErrIdleTimeout = errors.New("idle timeout reached") // таймаут бездействия
+	ErrNoRetriesAvailable = errors.New("no more retries available")
 
 	// Server
 )
