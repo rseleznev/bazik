@@ -57,6 +57,7 @@ func (s *server) getConn() (conn, error) {
 			if err != nil {
 				return nil, err
 			}
+			s.activeConnectionsAmount.Add(1)
 			return c, nil
 		}
 		return nil, models.ErrNoConnsAvailable
@@ -68,15 +69,18 @@ func (s *server) getConn() (conn, error) {
 			if err != nil {
 				return nil, err
 			}
+			s.activeConnectionsAmount.Add(1)
 			return c, nil
 		}
 		return nil, models.ErrNoConnsAvailable
 	}
+	s.activeConnectionsAmount.Add(1)
 
 	return <-s.connPool, nil
 }
 
 func (s *server) storeConn(c conn) {
+	s.activeConnectionsAmount.Add(-1)
 	if s.disableSocksPool {
 		return
 	}
