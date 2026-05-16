@@ -3,6 +3,8 @@ package network
 import (
 	"sync"
 	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -20,13 +22,16 @@ type syscaller interface {
 	Connect(int, syscall.Sockaddr) error
 	Splice(writer, reader int) (int64, error)
 	Pipe() (int, int, error)
+	GetUnread(int) (int, error)
+	GetUnsent(int) (int, error)
 }
 
 type realSyscalls struct {
 	mu sync.Mutex
 
-	// буфер для создания дескрипторов пайпа,
-	// чтобы избежать частых мелких аллокаций
+	// Буфер для создания дескрипторов пайпа,
+	// чтобы избежать частых мелких аллокаций.
+	// Должен иметь длину 2
 	pipeFDs []int
 }
 
@@ -64,4 +69,12 @@ func (r *realSyscalls) Pipe() (int, int, error) {
 	err := syscall.Pipe2(r.pipeFDs, syscall.O_NONBLOCK)
 	
 	return r.pipeFDs[0], r.pipeFDs[1], err
+}
+
+func (r *realSyscalls) GetUnread(fd int) (int, error) {
+	return unix.IoctlGetInt(fd, unix.SIOCINQ)
+}
+
+func (r *realSyscalls) GetUnsent(fd int) (int, error) {
+	return unix.IoctlGetInt(fd, unix.SIOCOUTQ)
 }

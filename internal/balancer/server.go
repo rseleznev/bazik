@@ -85,7 +85,21 @@ func (s *server) storeConn(c conn) {
 		return
 	}
 	if len(s.connPool) < s.maxSocksPoolLen {
-		// нужно проверить неподтвержденные/непрочитанные данные
+		n, err := c.CheckUnread()
+		if err != nil {
+			// логируем ошибку
+		}
+		if n != 0 {
+			return
+		}
+
+		n, err = c.CheckUnsent()
+		if err != nil {
+			// логируем ошибку
+		}
+		if n != 0 {
+			return
+		}
 
 		s.connPool <- c
 	}

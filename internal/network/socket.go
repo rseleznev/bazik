@@ -198,6 +198,14 @@ func (s *socket) GetRawAddr() string {
 	return s.addr.Raw
 }
 
+func (s *socket) CheckUnread() (int, error) {
+	return s.sys.GetUnread(s.getFd())
+}
+
+func (s *socket) CheckUnsent() (int, error) {
+	return s.sys.GetUnsent(s.getFd())
+}
+
 func (s *socket) getFd() int {
 	return s.fd
 }

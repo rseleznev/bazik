@@ -24,6 +24,8 @@ type conn interface {
 	LastActivity() time.Time
 	SetLastActivity(time.Time)
 	GetRawAddr() string
+	CheckUnread() (int, error)
+	CheckUnsent() (int, error)
 }
 
 type TCPBalancer struct {
