@@ -37,16 +37,7 @@ type TCPBalancer struct {
 	net networker
 }
 
-func (b *TCPBalancer) run() {
-	// создаем серверы
-	
-	for _, s := range b.servers {
-		err := s.init()
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-	
+func (b *TCPBalancer) Run() {
 	listener, err := b.net.NewTCPListener()
 	if err != nil {
 		log.Fatal(err)
@@ -61,7 +52,7 @@ func (b *TCPBalancer) run() {
 
 func (b *TCPBalancer) link(c conn) {
 	b.mu.RLock()
-	if len(b.chats) >= b.opts.MaxClientsAmount {
+	if len(b.chats) >= b.opts.maxClientsAmount {
 		b.mu.RUnlock()
 		c.Close()
 

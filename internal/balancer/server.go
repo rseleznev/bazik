@@ -7,16 +7,13 @@ import (
 )
 
 type server struct {
-	id string
-
-	net networker
-	
 	addr models.Address
 	activeConnectionsAmount atomic.Int32
 	connPool chan conn
 
+	net networker
+
 	retryAmount int
-	maxResponseSeconds int
 	maxClientsAmount int
 	maxIdleSeconds int
 	disableSocksPool bool
