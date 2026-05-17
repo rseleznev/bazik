@@ -5,6 +5,10 @@ import "errors"
 var (
 	// Polling
 	ErrPollTimeout = errors.New("polling timeout")
+	ErrPollUnknownEventType = errors.New("unknown event type for polling")
+	ErrSocketEvent = errors.New("error event has happened on socket") // EPOLLERR event
+	ErrSocketHUPEvent = errors.New("HUP error event has happened on socket") // EPOLLHUP event
+	ErrSocketRDHUPEvent = errors.New("RDHUP error event has happened on socket") // EPOLLRDHUP event
 
 	// Common
 	ErrTimeout = errors.New("timeout reached")
