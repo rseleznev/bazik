@@ -2,7 +2,10 @@ package config
 
 type Config struct {	
 	IP string
+	IPbytes [4]byte
 	Port int
+
+	// Протокол/уровень балансировки (tcp/udp/http)
 	Proto string
 
 	// Алгоритм балансировки
@@ -31,6 +34,8 @@ type Config struct {
 	// Список доступных серверов
 	Servers []struct {
 		Address string
+		IPbytes [4]byte
+		Port int
 
 		// Настройки для конкретного сервера.
 		// Имеют приоритет над общими
@@ -71,6 +76,8 @@ type ServerOptions struct {
 	InitialSocksPoolLen int
 }
 
+// Init устанавливает значения по умолчанию, если они не указаны или указаны некорректно.
+// Формирует удобный вид (заполняет опции серверов)
 func (c *Config) Init() {
 
 }
