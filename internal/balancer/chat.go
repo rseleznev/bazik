@@ -17,8 +17,8 @@ type chat struct {
 	idleTimeout time.Duration
 	lastActivity time.Time
 
-	client conn
-	server conn
+	client models.Conn
+	server models.Conn
 
 	clientErr error
 	serverErr error

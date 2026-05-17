@@ -1,7 +1,6 @@
 package models
 
 import (
-	"syscall"
 	"time"
 )
 
@@ -22,19 +21,17 @@ type Address struct {
 	Port int
 }
 
-type Client struct {
-	Sock int
-	
-	Addr Address
-	LastActivity time.Time
-}
-
-type Server interface {
-	GetAddrIp4() syscall.SockaddrInet4
-	InitialPoolLen() int
-	MaxPoolLen() int
-	GetID() string
-	GetTimeout() time.Duration
-	GetRetries() int
-	GetIdleTimeout() time.Duration
+type Conn interface {
+	Connect() error
+	Accept() Conn
+	Close()
+	GetFd() int
+	CopyTo(Conn) error
+	SetIdleDeadline(time.Time)
+	LogActivity()
+	LastActivity() time.Time
+	SetLastActivity(time.Time)
+	GetRawAddr() string
+	CheckUnread() (int, error)
+	CheckUnsent() (int, error)
 }

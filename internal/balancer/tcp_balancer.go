@@ -4,29 +4,28 @@ import (
 	"log"
 	"math/rand"
 	"sync"
-	"time"
 
 	"github.com/rseleznev/bazik/internal/models"
 )
 
 type networker interface {
-	NewTCPListener() (conn, error)
-	NewConn(models.Address) (conn, error)
+	NewTCPListener() (models.Conn, error)
+	NewConn(models.Address) (models.Conn, error)
 }
 
-type conn interface {
-	Connect() error
-	Accept() conn
-	Close()
-	CopyTo(conn) error
-	SetIdleDeadline(time.Time)
-	LogActivity()
-	LastActivity() time.Time
-	SetLastActivity(time.Time)
-	GetRawAddr() string
-	CheckUnread() (int, error)
-	CheckUnsent() (int, error)
-}
+// type conn interface {
+// 	Connect() error
+// 	Accept() conn
+// 	Close()
+// 	CopyTo(conn) error
+// 	SetIdleDeadline(time.Time)
+// 	LogActivity()
+// 	LastActivity() time.Time
+// 	SetLastActivity(time.Time)
+// 	GetRawAddr() string
+// 	CheckUnread() (int, error)
+// 	CheckUnsent() (int, error)
+// }
 
 type TCPBalancer struct {
 	opts *options
@@ -50,7 +49,7 @@ func (b *TCPBalancer) Run() {
 	}
 }
 
-func (b *TCPBalancer) link(c conn) {
+func (b *TCPBalancer) link(c models.Conn) {
 	b.mu.RLock()
 	if len(b.chats) >= b.opts.maxClientsAmount {
 		b.mu.RUnlock()
@@ -60,7 +59,7 @@ func (b *TCPBalancer) link(c conn) {
 	}
 	b.mu.RUnlock()
 
-	var s conn
+	var s models.Conn
 	var err error
 	
 	for {
@@ -132,7 +131,7 @@ func (b *TCPBalancer) findServer() *server {
 	}
 }
 
-func (b *TCPBalancer) storeConn(c conn) {
+func (b *TCPBalancer) storeConn(c models.Conn) {
 	addr := c.GetRawAddr()
 	for _, s := range b.servers {
 		if s.addr.Raw == addr {

@@ -65,7 +65,7 @@ func (s *socket) updateLastActivity() {
 
 func (s *socket) poll(eventType string) error {
 	pUnit := models.PollingUnit{
-		SocketFd: s.getFd(),
+		SocketFd: s.GetFd(),
 		EventType: eventType,
 		ResultChan: make(chan error),
 	}
@@ -84,7 +84,7 @@ func (s *socket) poll(eventType string) error {
 
 		default:
 			if time.Now().After(s.getIdleDeadline()) {
-				s.poller.DeleteSocketFromPolling(s.getFd())
+				s.poller.DeleteSocketFromPolling(s.GetFd())
 
 				return models.ErrPollTimeout
 			}
@@ -128,7 +128,10 @@ func (s *socket) pollFdWithTimeout(fd int, t time.Duration, eventType string) er
 	}
 }
 
-func (s *socket) CopyTo(dst *socket) error {
+func (s *socket) Accept() models.Conn
+func (s *socket) Connect() error
+
+func (s *socket) CopyTo(dst models.Conn) error {
 	if !s.hasPipe() || s.hasDataInPipe() {
 		if s.hasDataInPipe() {
 			s.closePipe()
@@ -154,12 +157,12 @@ func (s *socket) CopyTo(dst *socket) error {
 		s.updateLastActivity()
 	}
 
-	err = s.transfer(s.getFd(), s.getPipeWriteFd())
+	err = s.transfer(s.GetFd(), s.getPipeWriteFd())
 	if err != nil {
 		return err
 	}
 	s.newDataInPipe()
-	err = s.transfer(s.getPipeReadFd(), dst.getFd())
+	err = s.transfer(s.getPipeReadFd(), dst.GetFd())
 	if err != nil {
 		return err
 	}
@@ -189,7 +192,7 @@ func (s *socket) transfer(src, dst int) error {
 }
 
 func (s *socket) Close() {
-	s.sys.Close(s.getFd())
+	s.sys.Close(s.GetFd())
 	s.sys.Close(s.getPipeWriteFd())
 	s.sys.Close(s.getPipeReadFd())
 }
@@ -199,14 +202,14 @@ func (s *socket) GetRawAddr() string {
 }
 
 func (s *socket) CheckUnread() (int, error) {
-	return s.sys.GetUnread(s.getFd())
+	return s.sys.GetUnread(s.GetFd())
 }
 
 func (s *socket) CheckUnsent() (int, error) {
-	return s.sys.GetUnsent(s.getFd())
+	return s.sys.GetUnsent(s.GetFd())
 }
 
-func (s *socket) getFd() int {
+func (s *socket) GetFd() int {
 	return s.fd
 }
 

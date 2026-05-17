@@ -9,7 +9,7 @@ import (
 type server struct {
 	addr models.Address
 	activeConnectionsAmount atomic.Int32
-	connPool chan conn
+	connPool chan models.Conn
 
 	net networker
 
@@ -23,7 +23,7 @@ type server struct {
 
 func (s *server) init() error {
 	if !s.disableSocksPool {
-		s.connPool = make(chan conn, s.maxSocksPoolLen)	
+		s.connPool = make(chan models.Conn, s.maxSocksPoolLen)	
 	}
 	
 	for range s.initialSocksPoolLen {
@@ -36,7 +36,7 @@ func (s *server) init() error {
 	return nil
 }
 
-func (s *server) newConn() (conn, error) {
+func (s *server) newConn() (models.Conn, error) {
 	c, err := s.net.NewConn(s.addr)
 	if err != nil {
 		return nil, err
@@ -47,7 +47,7 @@ func (s *server) newConn() (conn, error) {
 	return c, nil
 }
 
-func (s *server) getConn() (conn, error) {
+func (s *server) getConn() (models.Conn, error) {
 	if s.disableSocksPool {
 		if int(s.activeConnectionsAmount.Load()) < s.maxClientsAmount {
 			c, err := s.newConn()
@@ -76,7 +76,7 @@ func (s *server) getConn() (conn, error) {
 	return <-s.connPool, nil
 }
 
-func (s *server) storeConn(c conn) {
+func (s *server) storeConn(c models.Conn) {
 	s.activeConnectionsAmount.Add(-1)
 	if s.disableSocksPool {
 		return
