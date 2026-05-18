@@ -107,11 +107,12 @@ func (c *chat) tcpProxy() (bool, error) {
 			if c.isClientErr() {
 				// в случае клиентской ошибки нам нечего делать с клиентом,
 				// поэтому мы просто считаем соединение (чат) завершенным
+				c.client.Close()
 
 				// серверный сокет закрываем для подстраховки
 				c.server.Close() 
 
-				break
+				return c.isRetryAvailable(), models.ErrClientSide
 			}
 			c.server.Close()
 			c.serverErrOccurred()

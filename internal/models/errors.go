@@ -14,6 +14,7 @@ var (
 	ErrTimeout = errors.New("timeout reached")
 	ErrIdleTimeout = errors.New("idle timeout reached") // таймаут бездействия
 	ErrNoRetriesAvailable = errors.New("no more retries available")
+	ErrClientSide = errors.New("error on client side")
 
 	// Server
 	ErrNoConnsAvailable = errors.New("no more conns to the server available")

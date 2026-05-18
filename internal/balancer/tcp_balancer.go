@@ -77,16 +77,38 @@ func (b *TCPBalancer) process(c *chat) {
 	for {
 		canRetry, err := c.tcpProxy()
 		if err != nil {
-			if canRetry {
+			if err == models.ErrClientSide {
+				// в случае клиентской ошибки просто прекращаем работу,
+				// ждем новое соединение от клиента
+				b.mu.Lock()
+				delete(b.chats, c.id)
+				b.mu.Unlock()
+				return
+			}
+			if canRetry { // проверяем, разрешены ли ретраи
+				// пробуем найти новый сервер
+				tryCounter := 1 // защита от бесконечного цикла поиска сервера
 				for {
+					if tryCounter > 3 {
+						c.close()
+						b.mu.Lock()
+						delete(b.chats, c.id)
+						b.mu.Unlock()
+						return
+					}
 					newServer, err := b.findServer().getConn()
 					if err != nil {
 						if err == models.ErrNoConnsAvailable {
 							// логируем ошибку
+							tryCounter++
 							continue
 						}
 						
 						// логируем ошибку без Fatal
+						c.close()
+						b.mu.Lock()
+						delete(b.chats, c.id)
+						b.mu.Unlock()
 						return
 					}
 					c.server = newServer
@@ -95,8 +117,15 @@ func (b *TCPBalancer) process(c *chat) {
 				
 				continue
 			}
+			// если ретраи не разрешены, закрываем соединение с клиентом
 			c.close()
+			b.mu.Lock()
+			delete(b.chats, c.id)
+			b.mu.Unlock()
+			return
 		}
+		// если чат завершился без ошибок,
+		// т.е. по таймеру бездействия
 		break
 	}
 	b.mu.Lock()
