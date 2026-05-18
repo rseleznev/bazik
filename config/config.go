@@ -1,15 +1,16 @@
 package config
 
+import "github.com/rseleznev/bazik/internal/models"
+
 type Config struct {	
 	IP string
-	IPbytes [4]byte
 	Port int
 
 	// Протокол/уровень балансировки (tcp/udp/http)
 	Proto string
 
 	// Алгоритм балансировки
-	BalancingAlg string
+	BalancerAlg string
 
 	// Режим проксирования
 	//
@@ -28,22 +29,11 @@ type Config struct {
 	// Частота проверки жизни серверов
 	// Размеры буферов ядра
 
+	// ------------------------------------
 	// Общие настройки для всех серверов
-	ServerOptions
+	// У серверов аналогичные настройки, которые имеют приоритет над общими
+	//
 
-	// Список доступных серверов
-	Servers []struct {
-		Address string
-		IPbytes [4]byte
-		Port int
-
-		// Настройки для конкретного сервера.
-		// Имеют приоритет над общими
-		ServerOptions
-	}
-}
-
-type ServerOptions struct {
 	// Количество попыток переподключиться к серверу при ошибке.
 	//
 	// Если необходима целостность данных, следует установить 0,
@@ -74,10 +64,27 @@ type ServerOptions struct {
 	// от нагрузки, и потом снова снижается до InitialServerSocksPoolLen.
 	// Не должен быть больше MaxServerSocksPoolLen. По умолчанию 3
 	InitialSocksPoolLen int
+
+	// ------------------------------------
+
+	// Список доступных серверов
+	Servers []struct {
+		Address string
+
+		RetryAmount int
+		MaxClientsAmount int
+		MaxIdleSeconds int
+		DisableSocksPool bool
+		MaxSocksPoolLen int
+		InitialSocksPoolLen int
+	}
 }
 
-// Init устанавливает значения по умолчанию, если они не указаны или указаны некорректно.
-// Формирует удобный вид (заполняет опции серверов)
-func (c *Config) Init() {
+type BalancerConfig struct {
+	Balancer *models.BalancerOptions
+	Servers []*models.ServerOptions
+}
 
+func (c *Config) Parse(path string) []BalancerConfig {
+	return nil
 }
