@@ -7,26 +7,19 @@ import (
 )
 
 type server struct {
-	addr models.Address
+	opts *models.ServerOptions
 	activeConnectionsAmount atomic.Int32
 	connPool chan models.Conn
 
 	net networker
-
-	retryAmount int
-	maxClientsAmount int
-	maxIdleSeconds int
-	disableSocksPool bool
-	maxSocksPoolLen int
-	initialSocksPoolLen int
 }
 
 func (s *server) init() error {
-	if !s.disableSocksPool {
-		s.connPool = make(chan models.Conn, s.maxSocksPoolLen)	
+	if !s.opts.DisableSocksPool {
+		s.connPool = make(chan models.Conn, s.opts.MaxSocksPoolLen)	
 	}
 	
-	for range s.initialSocksPoolLen {
+	for range s.opts.InitialSocksPoolLen {
 		c, err := s.newConn()
 		if err != nil {
 			return err
@@ -37,7 +30,7 @@ func (s *server) init() error {
 }
 
 func (s *server) newConn() (models.Conn, error) {
-	c, err := s.net.NewConn(s.addr)
+	c, err := s.net.NewConn(s.opts.Addr)
 	if err != nil {
 		return nil, err
 	}
@@ -48,8 +41,8 @@ func (s *server) newConn() (models.Conn, error) {
 }
 
 func (s *server) getConn() (models.Conn, error) {
-	if s.disableSocksPool {
-		if int(s.activeConnectionsAmount.Load()) < s.maxClientsAmount {
+	if s.opts.DisableSocksPool {
+		if int(s.activeConnectionsAmount.Load()) < s.opts.MaxClientsAmount {
 			c, err := s.newConn()
 			if err != nil {
 				return nil, err
@@ -61,7 +54,7 @@ func (s *server) getConn() (models.Conn, error) {
 	}
 	
 	if len(s.connPool) <= 0 {
-		if int(s.activeConnectionsAmount.Load()) < s.maxClientsAmount {
+		if int(s.activeConnectionsAmount.Load()) < s.opts.MaxClientsAmount {
 			c, err := s.newConn()
 			if err != nil {
 				return nil, err
@@ -78,10 +71,10 @@ func (s *server) getConn() (models.Conn, error) {
 
 func (s *server) storeConn(c models.Conn) {
 	s.activeConnectionsAmount.Add(-1)
-	if s.disableSocksPool {
+	if s.opts.DisableSocksPool {
 		return
 	}
-	if len(s.connPool) < s.maxSocksPoolLen {
+	if len(s.connPool) < s.opts.MaxSocksPoolLen {
 		n, err := c.CheckUnread()
 		if err != nil {
 			// логируем ошибку

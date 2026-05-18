@@ -21,6 +21,30 @@ type Address struct {
 	Port int
 }
 
+type BalancerOptions struct {
+	Addr Address
+	Proto string
+	BalancerAlg string
+	
+	RetryAmount int
+	MaxClientsAmount int
+	MaxIdleSeconds int
+	DisableSocksPool bool
+	MaxSocksPoolLen int
+	InitialSocksPoolLen int
+}
+
+type ServerOptions struct {
+	Addr Address
+
+	RetryAmount int
+	MaxClientsAmount int
+	MaxIdleSeconds int
+	DisableSocksPool bool
+	MaxSocksPoolLen int
+	InitialSocksPoolLen int
+}
+
 type Conn interface {
 	Connect() error
 	Accept() Conn

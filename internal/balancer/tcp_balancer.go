@@ -13,22 +13,8 @@ type networker interface {
 	NewConn(models.Address) (models.Conn, error)
 }
 
-// type conn interface {
-// 	Connect() error
-// 	Accept() conn
-// 	Close()
-// 	CopyTo(conn) error
-// 	SetIdleDeadline(time.Time)
-// 	LogActivity()
-// 	LastActivity() time.Time
-// 	SetLastActivity(time.Time)
-// 	GetRawAddr() string
-// 	CheckUnread() (int, error)
-// 	CheckUnsent() (int, error)
-// }
-
 type TCPBalancer struct {
-	opts *options
+	opts *models.BalancerOptions
 	mu sync.RWMutex
 	servers []*server
 	chats map[string]*chat
@@ -51,7 +37,7 @@ func (b *TCPBalancer) Run() {
 
 func (b *TCPBalancer) link(c models.Conn) {
 	b.mu.RLock()
-	if len(b.chats) >= b.opts.maxClientsAmount {
+	if len(b.chats) >= b.opts.MaxClientsAmount {
 		b.mu.RUnlock()
 		c.Close()
 
@@ -120,7 +106,7 @@ func (b *TCPBalancer) process(c *chat) {
 }
 
 func (b *TCPBalancer) findServer() *server {
-	switch b.opts.balancingAlg {
+	switch b.opts.BalancerAlg {
 	case "random":
 		n := rand.Intn(len(b.servers))
 		return b.servers[n]
@@ -134,7 +120,7 @@ func (b *TCPBalancer) findServer() *server {
 func (b *TCPBalancer) storeConn(c models.Conn) {
 	addr := c.GetRawAddr()
 	for _, s := range b.servers {
-		if s.addr.Raw == addr {
+		if s.opts.Addr.Raw == addr {
 			s.storeConn(c)
 			break
 		}
