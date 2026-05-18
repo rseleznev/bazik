@@ -9,7 +9,7 @@ import (
 )
 
 type networker interface {
-	NewTCPListener() (models.Conn, error)
+	NewTCPListener(models.Address) (models.Conn, error)
 	NewConn(models.Address) (models.Conn, error)
 }
 
@@ -23,7 +23,7 @@ type TCPBalancer struct {
 }
 
 func (b *TCPBalancer) Run() {
-	listener, err := b.net.NewTCPListener()
+	listener, err := b.net.NewTCPListener(b.opts.Addr)
 	if err != nil {
 		log.Fatal(err)
 	}

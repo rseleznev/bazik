@@ -2,6 +2,7 @@ package network
 
 import (
 	"errors"
+	"log"
 	"runtime"
 	"sync"
 	"syscall"
@@ -27,6 +28,47 @@ type socket struct {
 	sys syscaller
 	poller poller
 }
+
+func (s *socket) bind() error {
+	return s.sys.Bind(s.GetFd(), &syscall.SockaddrInet4{
+		Addr: s.addr.IP,
+		Port: s.addr.Port,
+	})
+}
+
+func (s *socket) listen() error {
+	return s.sys.Listen(s.GetFd(), 10)
+}
+
+func (s *socket) Accept() models.Conn {
+	err := s.pollWithoutTimeout("income")
+	if err != nil {
+		log.Fatal(err)
+	}
+	
+	sFd, a, err := s.sys.Accept(s.GetFd())
+	if err != nil {
+		log.Fatal(err)
+	}
+	addr, ok := a.(*syscall.SockaddrInet4)
+	if !ok {
+		log.Fatal("addr assert error")
+	}
+
+	return &socket{
+		fd: sFd,
+		mu: sync.RWMutex{},
+		addr: models.Address{
+			IP: addr.Addr,
+			Port: addr.Port,
+		},
+		// разобраться с прастановкой таймаутов
+
+		sys: s.sys,
+		poller: s.poller,
+	}
+}
+func (s *socket) Connect() error
 
 func (s *socket) LogActivity() {
 	s.logActivity = true
@@ -128,8 +170,23 @@ func (s *socket) pollFdWithTimeout(fd int, t time.Duration, eventType string) er
 	}
 }
 
-func (s *socket) Accept() models.Conn
-func (s *socket) Connect() error
+func (s *socket) pollWithoutTimeout(eventType string) error {
+	pUnit := models.PollingUnit{
+		SocketFd: s.GetFd(),
+		EventType: eventType,
+		ResultChan: make(chan error),
+	}
+	err := s.poller.Add(pUnit)
+	if err != nil {
+		return err
+	}
+
+	err = <-pUnit.ResultChan
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
 func (s *socket) CopyTo(dst models.Conn) error {
 	if !s.hasPipe() || s.hasDataInPipe() {
