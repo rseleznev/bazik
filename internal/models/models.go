@@ -37,6 +37,7 @@ type BalancerOptions struct {
 type ServerOptions struct {
 	Addr Address
 
+	MainTimeout int
 	RetryAmount int
 	MaxClientsAmount int
 	MaxIdleSeconds int
