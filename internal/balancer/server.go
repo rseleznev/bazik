@@ -24,7 +24,7 @@ func (s *server) init() error {
 			if err != nil {
 				return err
 			}
-			s.storeConn(c)
+			s.connPool <- c
 		}
 	}
 	
