@@ -55,7 +55,7 @@ func (c *chat) end() {
 // tcpProxy проксирует TCP-трафик в режиме zero-copy
 func (c *chat) tcpProxy() error {
 	c.setup()
-	
+
 	go func() {
 		for !c.isPaused() && !c.isEnded() {
 			err := c.client.CopyTo(c.server)
@@ -66,7 +66,7 @@ func (c *chat) tcpProxy() error {
 				}
 				c.setClientErr(err)
 				c.pause()
-				break
+				return
 			}
 		}
 	}()
@@ -81,7 +81,7 @@ func (c *chat) tcpProxy() error {
 				}
 				c.setServerErr(err)
 				c.pause()
-				break
+				return
 			}
 		}
 	}()
@@ -91,11 +91,6 @@ func (c *chat) tcpProxy() error {
 			if c.isClientErr() {
 				// в случае клиентской ошибки нам нечего делать с клиентом,
 				// поэтому мы просто считаем соединение (чат) завершенным
-				c.client.Close()
-
-				// серверный сокет закрываем для подстраховки
-				c.server.Close() 
-
 				return models.ErrClientSide
 			}
 			c.server.Close()
