@@ -45,11 +45,13 @@ func (b *TCPBalancer) link(c models.Conn) {
 	}
 	b.mu.RUnlock()
 
+	var server *server
 	var s models.Conn
 	var err error
 	
 	for {
-		s, err = b.findServer().getConn()
+		server = b.findServer()
+		s, err = server.getConn()
 		if err != nil {
 			// у конкретного сервера нет свободных соединений
 			if err == models.ErrNoConnsAvailable {
@@ -67,6 +69,10 @@ func (b *TCPBalancer) link(c models.Conn) {
 
 	chat := &chat{
 		id: id,
+		mu: sync.RWMutex{},
+		mainTimeout: server.getMainTimeout(),
+		idleTimeout: server.getIdleTimeout(),
+
 		client: c,
 		server: s,
 	}

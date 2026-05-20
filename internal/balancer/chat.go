@@ -13,6 +13,7 @@ type chat struct {
 	mu sync.RWMutex
 	paused bool
 	ended bool
+	mainTimeout time.Duration
 	idleTimeout time.Duration
 	lastActivity time.Time
 

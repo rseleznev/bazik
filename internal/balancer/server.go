@@ -2,6 +2,7 @@ package balancer
 
 import (
 	"sync/atomic"
+	"time"
 
 	"github.com/rseleznev/bazik/internal/models"
 )
@@ -93,4 +94,12 @@ func (s *server) storeConn(c models.Conn) {
 
 		s.connPool <- c
 	}
+}
+
+func (s *server) getIdleTimeout() time.Duration {
+	return time.Duration(s.opts.MaxIdleSeconds)*time.Second
+}
+
+func (s *server) getMainTimeout() time.Duration {
+	return time.Duration(s.opts.MainTimeout)*time.Millisecond
 }
