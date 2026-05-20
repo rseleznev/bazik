@@ -16,16 +16,17 @@ type server struct {
 }
 
 func (s *server) init() error {
-	if !s.opts.DisableSocksPool {
-		s.connPool = make(chan models.Conn, s.opts.MaxSocksPoolLen)
+	if s.opts.DisableSocksPool {
+		return nil
+	}
+	s.connPool = make(chan models.Conn, s.opts.MaxSocksPoolLen)
 
-		for range s.opts.InitialSocksPoolLen {
-			c, err := s.newConn()
-			if err != nil {
-				return err
-			}
-			s.connPool <- c
+	for range s.opts.InitialSocksPoolLen {
+		c, err := s.newConn()
+		if err != nil {
+			return err
 		}
+		s.connPool <- c
 	}
 	
 	return nil
