@@ -54,16 +54,8 @@ func (c *chat) end() {
 
 // tcpProxy проксирует TCP-трафик в режиме zero-copy
 func (c *chat) tcpProxy() error {
-	c.client.LogActivity()
-	c.server.LogActivity()
-
-	now := time.Now()
-	c.setLastActivity(now)
-	c.client.SetLastActivity(now)
-	c.server.SetLastActivity(now)
+	c.setup()
 	
-	c.client.SetIdleDeadline(now.Add(c.getIdleTimeout()))
-	c.server.SetIdleDeadline(now.Add(c.getIdleTimeout()))
 	go func() {
 		for !c.isPaused() && !c.isEnded() {
 			err := c.client.CopyTo(c.server)
@@ -130,6 +122,19 @@ func (c *chat) tcpProxy() error {
 	// и переиспользовать
 
 	return nil
+}
+
+func (c *chat) setup() {
+	c.client.LogActivity()
+	c.server.LogActivity()
+
+	now := time.Now()
+	c.setLastActivity(now)
+	c.client.SetLastActivity(now)
+	c.server.SetLastActivity(now)
+	
+	c.client.SetIdleDeadline(now.Add(c.getIdleTimeout()))
+	c.server.SetIdleDeadline(now.Add(c.getIdleTimeout()))
 }
 
 // close останавливает чат, если его нужно остановить из вне (из балансировщика)
