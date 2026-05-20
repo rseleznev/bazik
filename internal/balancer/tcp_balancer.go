@@ -77,8 +77,9 @@ func (b *TCPBalancer) link(c models.Conn) {
 }
 
 func (b *TCPBalancer) process(c *chat) {
+	availableRetries := b.opts.RetryAmount
 	for {
-		canRetry, err := c.tcpProxy()
+		err := c.tcpProxy()
 		if err != nil {
 			if err == models.ErrClientSide {
 				// в случае клиентской ошибки просто прекращаем работу,
@@ -89,8 +90,9 @@ func (b *TCPBalancer) process(c *chat) {
 				b.mu.Unlock()
 				return
 			}
-			if canRetry { // проверяем, разрешены ли ретраи
+			if availableRetries > 0 { // проверяем, разрешены ли ретраи
 				// пробуем найти новый сервер
+				availableRetries--
 				tryCounter := 1 // защита от бесконечного цикла поиска сервера
 				for {
 					if tryCounter > 3 { // слишком много неудачных попыток найти новый сервер

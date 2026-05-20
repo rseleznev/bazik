@@ -11,7 +11,6 @@ import (
 type chat struct {
 	id string
 	mu sync.RWMutex
-	retriesAvailable int
 	paused bool
 	ended bool
 	idleTimeout time.Duration
@@ -22,7 +21,6 @@ type chat struct {
 
 	clientErr error
 	serverErr error
-	serverErrsOccurred int
 }
 
 func (c *chat) isPaused() bool {
@@ -53,15 +51,8 @@ func (c *chat) end() {
 	c.mu.Unlock()
 }
 
-// tcpProxy проксирует TCP-трафик в режиме zero-copy.
-// Возвращает флаг, доступны ли ретраи
-func (c *chat) tcpProxy() (bool, error) {
-	// ограничение, чтобы не получить бесконечный цикл,
-	// когда клиент получает ошибку на нескольких серверах
-	if !c.isRetryAvailable() {
-		return c.isRetryAvailable(), models.ErrNoRetriesAvailable
-	}
-	
+// tcpProxy проксирует TCP-трафик в режиме zero-copy
+func (c *chat) tcpProxy() error {
 	c.client.LogActivity()
 	c.server.LogActivity()
 
@@ -112,11 +103,10 @@ func (c *chat) tcpProxy() (bool, error) {
 				// серверный сокет закрываем для подстраховки
 				c.server.Close() 
 
-				return c.isRetryAvailable(), models.ErrClientSide
+				return models.ErrClientSide
 			}
 			c.server.Close()
-			c.serverErrOccurred()
-			return c.isRetryAvailable(), c.getServerErr()
+			return c.getServerErr()
 		}
 		
 		clientLastActivity := c.client.LastActivity()
@@ -138,7 +128,7 @@ func (c *chat) tcpProxy() (bool, error) {
 	// серверный сокет не закрываем, т.к. можем вернуть его в пул
 	// и переиспользовать
 
-	return c.isRetryAvailable(), nil
+	return nil
 }
 
 // close останавливает чат, если его нужно остановить из вне (из балансировщика)
@@ -174,12 +164,4 @@ func (c *chat) isClientErr() bool {
 
 func (c *chat) getServerErr() error {
 	return c.serverErr
-}
-
-func (c *chat) serverErrOccurred() {
-	c.serverErrsOccurred++
-}
-
-func (c *chat) isRetryAvailable() bool {
-	return (c.retriesAvailable - c.serverErrsOccurred) > 0
 }
