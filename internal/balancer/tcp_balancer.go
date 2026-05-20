@@ -51,19 +51,22 @@ func (b *TCPBalancer) link(c models.Conn) {
 	for {
 		s, err = b.findServer().getConn()
 		if err != nil {
+			// у конкретного сервера нет свободных соединений
 			if err == models.ErrNoConnsAvailable {
 				// логируем ошибку
 				continue
 			}
 			
 			// логируем ошибку без Fatal
+			c.Close()
 			return
 		}
 		break
 	}
+	id := c.GetRawAddr() + " / " + s.GetRawAddr()
 
 	chat := &chat{
-		id: "client+server addr hash?",
+		id: id,
 		client: c,
 		server: s,
 	}
@@ -80,6 +83,7 @@ func (b *TCPBalancer) process(c *chat) {
 			if err == models.ErrClientSide {
 				// в случае клиентской ошибки просто прекращаем работу,
 				// ждем новое соединение от клиента
+				c.close()
 				b.mu.Lock()
 				delete(b.chats, c.id)
 				b.mu.Unlock()
@@ -89,7 +93,7 @@ func (b *TCPBalancer) process(c *chat) {
 				// пробуем найти новый сервер
 				tryCounter := 1 // защита от бесконечного цикла поиска сервера
 				for {
-					if tryCounter > 3 {
+					if tryCounter > 3 { // слишком много неудачных попыток найти новый сервер
 						c.close()
 						b.mu.Lock()
 						delete(b.chats, c.id)

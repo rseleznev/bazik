@@ -3,6 +3,7 @@ package network
 import (
 	"errors"
 	"runtime"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -53,6 +54,7 @@ func (s *socket) Accept() (models.Conn, error) {
 	if !ok {
 		return nil, models.ErrAddrAssert
 	}
+	rawAddr := string(addr.Addr[0]) + "." + string(addr.Addr[1]) + "." + string(addr.Addr[2]) + "." + string(addr.Addr[3]) + ":" + strconv.Itoa(addr.Port)
 
 	return &socket{
 		fd: sFd,
@@ -60,6 +62,7 @@ func (s *socket) Accept() (models.Conn, error) {
 		addr: models.Address{
 			IP: addr.Addr,
 			Port: addr.Port,
+			Raw: rawAddr,
 		},
 		// разобраться с простановкой таймаутов
 
