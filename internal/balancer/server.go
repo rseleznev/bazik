@@ -33,7 +33,7 @@ func (s *server) init() error {
 }
 
 func (s *server) newConn() (models.Conn, error) {
-	c, err := s.net.NewConn(s.opts.Addr)
+	c, err := s.net.NewTCPConn(s.opts.Addr)
 	if err != nil {
 		return nil, err
 	}

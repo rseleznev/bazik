@@ -10,7 +10,7 @@ import (
 
 type networker interface {
 	NewTCPListener(models.Address) (models.Listener, error)
-	NewConn(models.Address) (models.Conn, error)
+	NewTCPConn(models.Address) (models.Conn, error)
 }
 
 type TCPBalancer struct {

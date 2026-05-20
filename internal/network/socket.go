@@ -70,7 +70,12 @@ func (s *socket) Accept() (models.Conn, error) {
 		poller: s.poller,
 	}, nil
 }
-func (s *socket) Connect() error
+func (s *socket) connect() error {
+	return s.sys.Connect(s.GetFd(), &syscall.SockaddrInet4{
+		Addr: s.addr.IP,
+		Port: s.addr.Port,
+	})
+}
 
 func (s *socket) LogActivity() {
 	s.logActivity = true

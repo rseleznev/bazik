@@ -52,12 +52,25 @@ func (n *net) NewTCPListener(addr models.Address) (models.Listener, error) {
 	return s, nil
 }
 
-func (n *net) NewConn(addr models.Address) (models.Conn, error) {
-	// создаем сокет
+func (n *net) NewTCPConn(addr models.Address) (models.Conn, error) {
+	sFd, err := n.newSocket("tcp")
+	if err != nil {
+		return nil, err
+	}
+	s := &socket{
+		fd: sFd,
+		mu: sync.RWMutex{},
+		addr: addr,
 
-	// подключаемся
+		sys: n.sys,
+		poller: n.poller,
+	}
+	err = s.connect()
+	if err != nil {
+		return nil, err
+	}
 	
-	return &socket{}, nil
+	return s, nil
 }
 
 func (n *net) newSocket(proto string) (int, error) {
