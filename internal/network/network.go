@@ -27,7 +27,7 @@ func NewNet(p poller) *net {
 	}
 }
 
-func (n *net) NewTCPListener(addr models.Address) (models.Conn, error) {
+func (n *net) NewTCPListener(addr models.Address) (models.Listener, error) {
 	sFd, err := n.newSocket("tcp")
 	if err != nil {
 		return nil, err

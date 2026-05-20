@@ -9,7 +9,7 @@ import (
 )
 
 type networker interface {
-	NewTCPListener(models.Address) (models.Conn, error)
+	NewTCPListener(models.Address) (models.Listener, error)
 	NewConn(models.Address) (models.Conn, error)
 }
 
@@ -30,7 +30,7 @@ func (b *TCPBalancer) Run() {
 	// таймеры и настройки (TCP_NODELAY) слушающего сокета
 
 	for {
-		newClient := listener.Accept()
+		newClient, _ := listener.Accept()
 		go b.link(newClient)
 	}
 }

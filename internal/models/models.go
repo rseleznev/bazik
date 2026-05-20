@@ -46,9 +46,12 @@ type ServerOptions struct {
 	InitialSocksPoolLen int
 }
 
+type Listener interface {
+	Accept() (Conn, error)
+}
+
 type Conn interface {
 	Connect() error
-	Accept() Conn
 	Close()
 	GetFd() int
 	CopyTo(Conn) error

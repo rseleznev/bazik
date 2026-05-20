@@ -2,7 +2,6 @@ package network
 
 import (
 	"errors"
-	"log"
 	"runtime"
 	"sync"
 	"syscall"
@@ -40,19 +39,19 @@ func (s *socket) listen() error {
 	return s.sys.Listen(s.GetFd(), 10)
 }
 
-func (s *socket) Accept() models.Conn {
+func (s *socket) Accept() (models.Conn, error) {
 	err := s.pollWithoutTimeout("income")
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	
 	sFd, a, err := s.sys.Accept(s.GetFd())
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	addr, ok := a.(*syscall.SockaddrInet4)
 	if !ok {
-		log.Fatal("addr assert error")
+		return nil, models.ErrAddrAssert
 	}
 
 	return &socket{
@@ -62,11 +61,11 @@ func (s *socket) Accept() models.Conn {
 			IP: addr.Addr,
 			Port: addr.Port,
 		},
-		// разобраться с прастановкой таймаутов
+		// разобраться с простановкой таймаутов
 
 		sys: s.sys,
 		poller: s.poller,
-	}
+	}, nil
 }
 func (s *socket) Connect() error
 
