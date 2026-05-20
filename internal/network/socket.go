@@ -252,8 +252,9 @@ func (s *socket) transfer(src, dst int) error {
 
 func (s *socket) Close() {
 	s.sys.Close(s.GetFd())
-	s.sys.Close(s.getPipeWriteFd())
-	s.sys.Close(s.getPipeReadFd())
+	if s.hasPipe() {
+		s.closePipe()
+	}
 }
 
 func (s *socket) GetRawAddr() string {
