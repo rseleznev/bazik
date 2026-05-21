@@ -4,6 +4,7 @@ import (
 	"log"
 	"math/rand"
 	"sync"
+	"time"
 
 	"github.com/rseleznev/bazik/internal/models"
 )
@@ -70,7 +71,7 @@ func (b *TCPBalancer) link(c models.Conn) {
 	chat := &chat{
 		id: id,
 		mu: sync.RWMutex{},
-		mainTimeout: server.getMainTimeout(),
+		mainTimeout: b.getMainTimeout(),
 		idleTimeout: server.getIdleTimeout(),
 
 		client: c,
@@ -166,4 +167,8 @@ func (b *TCPBalancer) storeConn(c models.Conn) {
 			break
 		}
 	}
+}
+
+func (b *TCPBalancer) getMainTimeout() time.Duration {
+	return time.Duration(b.opts.MainTimeout)*time.Millisecond
 }

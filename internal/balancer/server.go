@@ -101,7 +101,3 @@ func (s *server) storeConn(c models.Conn) {
 func (s *server) getIdleTimeout() time.Duration {
 	return time.Duration(s.opts.MaxIdleSeconds)*time.Second
 }
-
-func (s *server) getMainTimeout() time.Duration {
-	return time.Duration(s.opts.MainTimeout)*time.Millisecond
-}

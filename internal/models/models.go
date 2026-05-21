@@ -26,6 +26,7 @@ type BalancerOptions struct {
 	Proto string
 	BalancerAlg string
 	
+	MainTimeout int
 	RetryAmount int
 	MaxClientsAmount int
 	MaxIdleSeconds int
@@ -37,7 +38,6 @@ type BalancerOptions struct {
 type ServerOptions struct {
 	Addr Address
 
-	MainTimeout int
 	RetryAmount int
 	MaxClientsAmount int
 	MaxIdleSeconds int
