@@ -75,7 +75,6 @@ func (s *socket) Accept() (models.Conn, error) {
 			Port: addr.Port,
 			Raw: rawAddr,
 		},
-		// разобраться с простановкой таймаутов
 
 		sys: s.sys,
 		poller: s.poller,
@@ -289,6 +288,10 @@ func (s *socket) CheckUnsent() (int, error) {
 
 func (s *socket) GetFd() int {
 	return s.fd
+}
+
+func (s *socket) SetMainTimeout(t time.Duration) {
+	s.timeout = t
 }
 
 func (s *socket) getTimeout() time.Duration {

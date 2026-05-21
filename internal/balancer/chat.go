@@ -130,6 +130,9 @@ func (c *chat) setup() {
 	
 	c.client.SetIdleDeadline(now.Add(c.getIdleTimeout()))
 	c.server.SetIdleDeadline(now.Add(c.getIdleTimeout()))
+
+	c.client.SetMainTimeout(c.getMainTimeout())
+	c.server.SetMainTimeout(c.getMainTimeout())
 }
 
 // close останавливает чат, если его нужно остановить из вне (из балансировщика)
@@ -141,6 +144,10 @@ func (c *chat) close() {
 
 func (c *chat) getIdleTimeout() time.Duration {
 	return c.idleTimeout
+}
+
+func (c *chat) getMainTimeout() time.Duration {
+	return c.mainTimeout
 }
 
 func (c *chat) getLastActivity() time.Time {

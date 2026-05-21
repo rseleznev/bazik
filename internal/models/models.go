@@ -56,6 +56,7 @@ type Conn interface {
 	GetFd() int
 	CopyTo(Conn) error
 	SetIdleDeadline(time.Time)
+	SetMainTimeout(t time.Duration)
 	LogActivity()
 	LastActivity() time.Time
 	SetLastActivity(time.Time)
