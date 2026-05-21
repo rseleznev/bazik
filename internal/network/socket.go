@@ -82,11 +82,28 @@ func (s *socket) Accept() (models.Conn, error) {
 }
 
 func (s *socket) connect() error {
-	// здесь должен быть поллинг
-	return s.sys.Connect(s.GetFd(), &syscall.SockaddrInet4{
-		Addr: s.addr.IP,
-		Port: s.addr.Port,
-	})
+	for {
+		err := s.sys.Connect(s.GetFd(), &syscall.SockaddrInet4{
+			Addr: s.addr.IP,
+			Port: s.addr.Port,
+		})
+		if err != nil {
+			if errors.Is(err, syscall.EINPROGRESS) {
+				err = s.pollFdWithTimeout(s.GetFd(), s.getTimeout(), "connect")
+				if err != nil {
+					if err == models.ErrPollTimeout {
+						return models.ErrTimeout
+					}
+					return err
+				}
+				continue
+			}
+			return err
+		}
+		break
+	}
+
+	return nil
 }
 
 func (s *socket) poll(eventType string) error {
