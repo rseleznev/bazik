@@ -41,15 +41,26 @@ func (s *socket) listen() error {
 }
 
 func (s *socket) Accept() (models.Conn, error) {
-	err := s.pollWithoutTimeout("income")
-	if err != nil {
-		return nil, err
+	var sFd int
+	var a syscall.Sockaddr
+	var err error
+	for {
+		sFd, a, err = s.sys.Accept(s.GetFd())
+		if err != nil {
+			if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EWOULDBLOCK) {
+				err := s.pollWithoutTimeout("income")
+				if err != nil {
+					return nil, err
+				}
+
+				continue		
+			}
+
+			return nil, err
+		}
+		break
 	}
 	
-	sFd, a, err := s.sys.Accept(s.GetFd())
-	if err != nil {
-		return nil, err
-	}
 	addr, ok := a.(*syscall.SockaddrInet4)
 	if !ok {
 		return nil, models.ErrAddrAssert
@@ -70,46 +81,13 @@ func (s *socket) Accept() (models.Conn, error) {
 		poller: s.poller,
 	}, nil
 }
+
 func (s *socket) connect() error {
+	// здесь должен быть поллинг
 	return s.sys.Connect(s.GetFd(), &syscall.SockaddrInet4{
 		Addr: s.addr.IP,
 		Port: s.addr.Port,
 	})
-}
-
-func (s *socket) LogActivity() {
-	s.logActivity = true
-	s.updateLastActivity()
-}
-
-func (s *socket) LastActivity() time.Time {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.lastActivity
-}
-
-func (s *socket) SetLastActivity(t time.Time) {
-	s.mu.Lock()
-	s.lastActivity = t
-	s.mu.Unlock()
-}
-
-func (s *socket) SetIdleDeadline(t time.Time) {
-	s.mu.Lock()
-	s.idleDeadline = t
-	s.mu.Unlock()
-}
-
-func (s *socket) getIdleDeadline() time.Time {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.idleDeadline
-}
-
-func (s *socket) updateLastActivity() {
-	s.mu.Lock()
-	s.lastActivity = time.Now()
-	s.mu.Unlock()
 }
 
 func (s *socket) poll(eventType string) error {
@@ -260,6 +238,41 @@ func (s *socket) Close() {
 	if s.hasPipe() {
 		s.closePipe()
 	}
+}
+
+func (s *socket) LogActivity() {
+	s.logActivity = true
+	s.updateLastActivity()
+}
+
+func (s *socket) LastActivity() time.Time {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.lastActivity
+}
+
+func (s *socket) SetLastActivity(t time.Time) {
+	s.mu.Lock()
+	s.lastActivity = t
+	s.mu.Unlock()
+}
+
+func (s *socket) SetIdleDeadline(t time.Time) {
+	s.mu.Lock()
+	s.idleDeadline = t
+	s.mu.Unlock()
+}
+
+func (s *socket) getIdleDeadline() time.Time {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.idleDeadline
+}
+
+func (s *socket) updateLastActivity() {
+	s.mu.Lock()
+	s.lastActivity = time.Now()
+	s.mu.Unlock()
 }
 
 func (s *socket) GetRawAddr() string {
