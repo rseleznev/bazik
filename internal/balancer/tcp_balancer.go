@@ -38,7 +38,7 @@ func (b *TCPBalancer) Run() {
 
 func (b *TCPBalancer) link(c models.Conn) {
 	b.mu.RLock()
-	if len(b.chats) >= b.opts.MaxClientsAmount {
+	if len(b.chats) >= b.getMaxClientAmount() {
 		b.mu.RUnlock()
 		c.Close()
 
@@ -77,14 +77,12 @@ func (b *TCPBalancer) link(c models.Conn) {
 		client: c,
 		server: s,
 	}
-	b.mu.Lock()
-	b.chats[chat.id] = chat
-	b.mu.Unlock()
+	b.addChat(chat)
 	b.process(chat)
 }
 
 func (b *TCPBalancer) process(c *chat) {
-	availableRetries := b.opts.RetryAmount
+	availableRetries := b.getRetryAmount()
 	for {
 		err := c.tcpProxy()
 		if err != nil {
@@ -92,9 +90,7 @@ func (b *TCPBalancer) process(c *chat) {
 				// в случае клиентской ошибки просто прекращаем работу,
 				// ждем новое соединение от клиента
 				c.close()
-				b.mu.Lock()
-				delete(b.chats, c.id)
-				b.mu.Unlock()
+				b.deleteChat(c)
 				return
 			}
 			if availableRetries > 0 { // проверяем, разрешены ли ретраи
@@ -104,9 +100,7 @@ func (b *TCPBalancer) process(c *chat) {
 				for {
 					if tryCounter > 3 { // слишком много неудачных попыток найти новый сервер
 						c.close()
-						b.mu.Lock()
-						delete(b.chats, c.id)
-						b.mu.Unlock()
+						b.deleteChat(c)
 						return
 					}
 					newServer, err := b.findServer().getConn()
@@ -119,9 +113,7 @@ func (b *TCPBalancer) process(c *chat) {
 						
 						// логируем ошибку без Fatal
 						c.close()
-						b.mu.Lock()
-						delete(b.chats, c.id)
-						b.mu.Unlock()
+						b.deleteChat(c)
 						return
 					}
 					c.server = newServer
@@ -132,18 +124,14 @@ func (b *TCPBalancer) process(c *chat) {
 			}
 			// если ретраи не разрешены, закрываем соединение с клиентом
 			c.close()
-			b.mu.Lock()
-			delete(b.chats, c.id)
-			b.mu.Unlock()
+			b.deleteChat(c)
 			return
 		}
 		// если чат завершился без ошибок,
 		// т.е. по таймеру бездействия
 		break
 	}
-	b.mu.Lock()
-	delete(b.chats, c.id)
-	b.mu.Unlock()
+	b.deleteChat(c)
 	b.storeConn(c.server)
 }
 
@@ -169,6 +157,26 @@ func (b *TCPBalancer) storeConn(c models.Conn) {
 	}
 }
 
+func (b *TCPBalancer) addChat(c *chat) {
+	b.mu.Lock()
+	b.chats[c.id] = c
+	b.mu.Unlock()
+}
+
+func (b *TCPBalancer) deleteChat(c *chat) {
+	b.mu.Lock()
+	delete(b.chats, c.id)
+	b.mu.Unlock()
+}
+
+func (b *TCPBalancer) getMaxClientAmount() int {
+	return b.opts.MaxClientsAmount
+}
+
 func (b *TCPBalancer) getMainTimeout() time.Duration {
 	return time.Duration(b.opts.MainTimeout)*time.Millisecond
+}
+
+func (b *TCPBalancer) getRetryAmount() int {
+	return b.opts.RetryAmount
 }
