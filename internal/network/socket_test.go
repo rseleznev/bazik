@@ -296,6 +296,74 @@ func TestCopyTo(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "fail ErrIdleTimeout",
+			dst: &socket{
+				fd: 2,
+				mu: sync.RWMutex{},
+				addr: models.Address{
+					IP: [4]byte{127, 0, 0, 1},
+					Port: 7000,
+				},
+			},
+			expectedErr: models.ErrIdleTimeout,
+			sys: mockSys{
+				closeFunc: func(_ int) error {
+					return nil
+				},
+				pipeFunc: func() (int, int, error) {
+					return 10, 11, nil
+				},
+				spliceFunc: func(_, _ int) (int64, error) {
+					return 0, nil
+				},
+			},
+			p: mockPoller{
+				addFunc: func(pu models.PollingUnit) error {
+					go func() {
+						time.Sleep(time.Second*2)
+						pu.ResultChan <- nil
+					}()
+					
+					return nil
+				},
+				deleteSocketFromPollingFunc: func(_ int) {},
+			},
+		},
+		{
+			name: "fail ErrTimeout",
+			dst: &socket{
+				fd: 2,
+				mu: sync.RWMutex{},
+				addr: models.Address{
+					IP: [4]byte{127, 0, 0, 1},
+					Port: 7000,
+				},
+			},
+			expectedErr: models.ErrTimeout,
+			sys: mockSys{
+				closeFunc: func(_ int) error {
+					return nil
+				},
+				pipeFunc: func() (int, int, error) {
+					return 10, 11, nil
+				},
+				spliceFunc: func(_, _ int) (int64, error) {
+					return 0, syscall.EAGAIN
+				},
+			},
+			p: mockPoller{
+				addFunc: func(pu models.PollingUnit) error {
+					go func() {
+						time.Sleep(time.Millisecond*700)
+						pu.ResultChan <- nil
+					}()
+					
+					return nil
+				},
+				deleteSocketFromPollingFunc: func(_ int) {},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
