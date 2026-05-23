@@ -16,7 +16,7 @@ func Test_init(t *testing.T) {
 		expectedErr error
 	}{
 		{
-			name: "success",
+			name: "success pool",
 			opts: &models.ServerOptions{
 				MaxSocksPoolLen: 10,
 				InitialSocksPoolLen: 5,
@@ -27,6 +27,43 @@ func Test_init(t *testing.T) {
 				},
 			},
 			expectedErr: nil,
+		},
+		{
+			name: "success no pool",
+			opts: &models.ServerOptions{
+				DisableSocksPool: true,
+			},
+			n: mockNetworker{
+				newTCPConnFunc: func(a models.Address) (models.Conn, error) {
+					return mockConn{}, nil
+				},
+			},
+			expectedErr: nil,
+		},
+		{
+			name: "success pool with 0 initial",
+			opts: &models.ServerOptions{
+				MaxSocksPoolLen: 10,
+			},
+			n: mockNetworker{
+				newTCPConnFunc: func(a models.Address) (models.Conn, error) {
+					return mockConn{}, nil
+				},
+			},
+			expectedErr: nil,
+		},
+		{
+			name: "fail ErrNoConnsAvailable",
+			opts: &models.ServerOptions{
+				MaxSocksPoolLen: 10,
+				InitialSocksPoolLen: 5,
+			},
+			n: mockNetworker{
+				newTCPConnFunc: func(a models.Address) (models.Conn, error) {
+					return nil, models.ErrNoConnsAvailable
+				},
+			},
+			expectedErr: models.ErrNoConnsAvailable,
 		},
 	}
 
