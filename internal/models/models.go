@@ -11,6 +11,7 @@ type PollingUnit struct {
 }
 
 type PollingResult struct {
+	EventType int
 	Err error
 }
 

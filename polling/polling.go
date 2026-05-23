@@ -9,6 +9,11 @@ import (
 	"github.com/rseleznev/bazik/internal/models"
 )
 
+const (
+	epollIncomeEvent = 0x0001
+	epollOutcomeEvent = 0x0010
+)
+
 type Epoll struct {
 	// файловый дескриптор инстанса epoll
 	fd int
@@ -26,7 +31,7 @@ type Epoll struct {
 	readyEvents []syscall.EpollEvent
 
 	// сокеты, которые поллим и канал для возврата результата
-	sockets map[int]models.PollingUnit
+	sockets map[int][]models.PollingUnit
 	// пришло неожиданное событие с ошибкой, когда никто не ждал
 	socketsUnexpErr map[int]error
 
@@ -45,7 +50,7 @@ func NewEpoll() (*Epoll, error) {
 		mu: sync.Mutex{},
 		eventsBuf: make([]syscall.EpollEvent, 5),
 		readyEvents: make([]syscall.EpollEvent, 0, 5),
-		sockets: make(map[int]models.PollingUnit),
+		sockets: make(map[int][]models.PollingUnit),
 		socketsUnexpErr: make(map[int]error),
 		sys: epollRealSyscalls{},
 	}, nil
@@ -64,6 +69,7 @@ func (e *Epoll) Add(unit models.PollingUnit) error {
 	}
 
 	// добавляем нужное событие в epoll_ctl
+	// !здесь нужно проверять уже добавленное событие, чтобы к нему добавить новое!
 	switch unit.EventType {
 
 	// хотим узнать результат подключения к серверу
@@ -173,21 +179,29 @@ func (e *Epoll) processEvents(readySocketsLen int) {
 
 		// проверяем корректные события
 		if v.Events & syscall.EPOLLIN != 0 { // есть данные в буфере получения
-			if e.getSocketEventType(socketFd) == "income" { // если ждем именно это событие
-				readySockets[socketFd] = models.PollingResult{}
-
-				continue
+			e := readySockets[socketFd].EventType & epollIncomeEvent
+			readySockets[socketFd] = models.PollingResult{
+				EventType: e,
 			}
+			// if e.getSocketEventType(socketFd) == "income" { // если ждем именно это событие
+			// 	readySockets[socketFd] = models.PollingResult{}
+
+			// 	continue
+			// }
 			// readySockets[socketFd] = models.PollingResult{
 			// 	Err: models.ErrPollDiffEventType,
 			// }
 		}
 		if v.Events & syscall.EPOLLOUT != 0 { // буфер отправки пуст
-			if e.getSocketEventType(socketFd) == "outcome" || e.getSocketEventType(socketFd) == "connect" { // если ждем именно это событие
-				readySockets[socketFd] = models.PollingResult{}
-
-				continue
+			e := readySockets[socketFd].EventType & epollOutcomeEvent
+			readySockets[socketFd] = models.PollingResult{
+				EventType: e,
 			}
+			// if e.getSocketEventType(socketFd) == "outcome" || e.getSocketEventType(socketFd) == "connect" { // если ждем именно это событие
+			// 	readySockets[socketFd] = models.PollingResult{}
+
+			// 	continue
+			// }
 			// readySockets[socketFd] = models.PollingResult{
 			// 	Err: models.ErrPollDiffEventType,
 			// }
@@ -201,6 +215,19 @@ func (e *Epoll) processEvents(readySocketsLen int) {
 
 	// возвращаем результаты, ждущие потоки могут продолжить свое выполнение
 	for s, v := range readySockets {
+		// если ждем 1 событие - закидываем результат во все ждущие каналы [конец]
+		// если ждем 2 события но приходит одно - идем только по соответствующим каналам и закидываем результат [продолжаем]
+		// если ждем 2 события и пришли оба - идем по всем каналам и закидываем результат [конец]
+		
+		for _, pu := range e.sockets[s] {
+			if (pu.EventType == "income") && (v.EventType & epollIncomeEvent != 0) {
+				pu.ResultChan <- v.Err
+			}
+			if (pu.EventType == "connect" || pu.EventType == "outcome") && (v.EventType & epollOutcomeEvent != 0) {
+				pu.ResultChan <- v.Err
+			}
+		}
+		
 		if ch := e.getSocketResultChan(s); ch == nil {
 			e.setSocketUnexpErr(s, v.Err) // случай, когда пришел результат, который никто не ждет
 		} else {
@@ -257,7 +284,10 @@ func (e *Epoll) isSocketInPolling(socketFd int) bool {
 }
 
 func (e *Epoll) addSocketInPolling(unit models.PollingUnit) {
-	e.sockets[unit.SocketFd] = unit
+	if e.sockets[unit.SocketFd] == nil {
+		e.sockets[unit.SocketFd] = make([]models.PollingUnit, 0, 2)
+	}
+	e.sockets[unit.SocketFd] = append(e.sockets[unit.SocketFd], unit)
 }
 
 func (e *Epoll) deleteSocketFromPolling(socketFd int) {
