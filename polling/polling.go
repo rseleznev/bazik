@@ -75,7 +75,7 @@ func (e *Epoll) Add(unit models.PollingUnit) error {
 	}
 
 	// смотрим, сколько событий мы уже ждем по сокету
-	if len(e.sockets[unit.SocketFd]) == 1 {
+	if e.socketPollingEventsLen(unit.SocketFd) == 1 {
 		if _, ok := e.sockets[unit.SocketFd][unit.EventType]; ok {
 			e.sockets[unit.SocketFd][unit.EventType] = append(e.sockets[unit.SocketFd][unit.EventType], unit)
 			return nil
@@ -86,7 +86,7 @@ func (e *Epoll) Add(unit models.PollingUnit) error {
 		}
 		return nil
 	}
-	if len(e.sockets[unit.SocketFd]) > 1 {
+	if e.socketPollingEventsLen(unit.SocketFd) > 1 {
 		e.sockets[unit.SocketFd][unit.EventType] = append(e.sockets[unit.SocketFd][unit.EventType], unit)
 		return nil
 	}
@@ -242,14 +242,16 @@ func (e *Epoll) processEvents(readySocketsLen int) {
 		// если ждем 2 события но приходит одно - идем только по соответствующим каналам и закидываем результат [продолжаем]
 		// если ждем 2 события и пришли оба - идем по всем каналам и закидываем результат [конец]
 
-		if len(e.sockets[s]) == 1 {
+		// не может быть больше двух ожидаемых событий
+		switch e.socketPollingEventsLen(s) {
+		case 1:
 			for _, units := range e.sockets[s] {
 				for _, pu := range units {
 					pu.ResultChan <- v.Err
 				}
 			}
-		}
-		if len(e.sockets[s]) == 2 {
+
+		case 2:
 			if (v.EventType & epollIncomeEvent != 0) && (v.EventType & epollOutcomeEvent != 0) {
 				for _, units := range e.sockets[s] {
 					for _, pu := range units {
@@ -287,9 +289,10 @@ func (e *Epoll) processEvents(readySocketsLen int) {
 					continue
 				}
 			}
-		}
-		if len(e.sockets[s]) == 0 {
+
+		case 0:
 			e.setSocketUnexpErr(s, v.Err)
+
 		}
 		
 		// if ch := e.getSocketResultChan(s); ch == nil {
@@ -343,9 +346,8 @@ func (e *Epoll) pushError() {
 // ------------------------------------------------
 // Методы, которые должны вызываться только под захваченным мьютексом
 
-func (e *Epoll) isSocketInPolling(socketFd int) bool {
-	_, ok := e.sockets[socketFd]
-	return ok
+func (e *Epoll) socketPollingEventsLen(socketFd int) int {
+	return len(e.sockets[socketFd])
 }
 
 // func (e *Epoll) addSocketInPolling(unit models.PollingUnit) {
