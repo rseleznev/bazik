@@ -70,7 +70,7 @@ func (e *Epoll) Add(unit models.PollingUnit) error {
 		return err
 	}
 
-	if !(unit.EventType == "connect") || (unit.EventType == "income") || (unit.EventType == "outcome") {
+	if !e.checkEventType(unit.EventType) {
 		return models.ErrPollUnknownEventType
 	}
 
@@ -442,6 +442,21 @@ func (e *Epoll) addInOutEvent(socketFd int) error {
 	}
 	
 	return nil
+}
+
+func (e *Epoll) checkEventType(eventType string) bool {
+	var ok bool
+
+	if eventType == "connect" {
+		ok = true
+	}
+	if eventType == "income" {
+		ok = true
+	}
+	if eventType == "outcome" {
+		ok = true
+	}
+	return ok
 }
 
 // Подумать над удалением сокета из interest list через ctl.EPOLL_CTL_DEL
