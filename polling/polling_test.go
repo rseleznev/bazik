@@ -12,9 +12,9 @@ import (
 )
 
 type mockSyscalls struct {
-	waitFunc func(int, []syscall.EpollEvent, int) (int, error)
+	waitFunc         func(int, []syscall.EpollEvent, int) (int, error)
 	getSocketOptFunc func(int, int, int) (int, error)
-	ctlFunc func(int, int, int, *syscall.EpollEvent) error
+	ctlFunc          func(int, int, int, *syscall.EpollEvent) error
 }
 
 func (ms *mockSyscalls) Wait(eFd int, events []syscall.EpollEvent, timeout int) (int, error) {
@@ -29,41 +29,42 @@ func (ms *mockSyscalls) Ctl(eFd, o, sFd int, event *syscall.EpollEvent) error {
 	return ms.ctlFunc(eFd, o, sFd, event)
 }
 
-var testPoller = &Epoll{
-	fd: 2,
-	mu: sync.Mutex{},
-	eventsBuf: make([]syscall.EpollEvent, 5),
-	readyEvents: make([]syscall.EpollEvent, 0, 5),
-	sockets: make(map[int]map[string][]models.PollingUnit),
-	socketsUnexpErr: make(map[int]error),
-}
 
 func TestAdd(t *testing.T) {
-	testData := []struct{
-		name string
-		setUpFunc func()
-		cleanUpFunc func()
+	testPoller := &Epoll{
+		fd:              2,
+		mu:              sync.Mutex{},
+		eventsBuf:       make([]syscall.EpollEvent, 5),
+		readyEvents:     make([]syscall.EpollEvent, 0, 5),
+		sockets:         make(map[int]map[string][]models.PollingUnit),
+		socketsUnexpErr: make(map[int]error),
+	}
+	
+	testData := []struct {
+		name              string
+		setupFunc         func()
+		cleanupFunc       func()
 		expectedMethodErr error
-		expectedChanErr error
+		expectedChanErr   error
 		expectedPollerErr error
-		eventForPolling models.PollingUnit
-		mockSys mockSyscalls
+		eventForPolling   models.PollingUnit
+		mockSys           mockSyscalls
 	}{
 		{
 			name: "success connect",
-			setUpFunc: func() {
+			setupFunc: func() {
 				testPoller.eventsBuf[0] = syscall.EpollEvent{
 					Events: syscall.EPOLLOUT,
-					Fd: 5,
+					Fd:     5,
 				}
 			},
 			expectedMethodErr: nil,
-			expectedChanErr: nil,
+			expectedChanErr:   nil,
 			expectedPollerErr: nil,
 
 			eventForPolling: models.PollingUnit{
-				SocketFd: 5,
-				EventType: "connect",
+				SocketFd:   5,
+				EventType:  "connect",
 				ResultChan: make(chan error),
 			},
 			mockSys: mockSyscalls{
@@ -80,19 +81,19 @@ func TestAdd(t *testing.T) {
 		},
 		{
 			name: "success income",
-			setUpFunc: func() {
+			setupFunc: func() {
 				testPoller.eventsBuf[0] = syscall.EpollEvent{
 					Events: syscall.EPOLLIN,
-					Fd: 5,
+					Fd:     5,
 				}
 			},
 			expectedMethodErr: nil,
-			expectedChanErr: nil,
+			expectedChanErr:   nil,
 			expectedPollerErr: nil,
 
 			eventForPolling: models.PollingUnit{
-				SocketFd: 5,
-				EventType: "income",
+				SocketFd:   5,
+				EventType:  "income",
 				ResultChan: make(chan error),
 			},
 			mockSys: mockSyscalls{
@@ -109,19 +110,19 @@ func TestAdd(t *testing.T) {
 		},
 		{
 			name: "success outcome",
-			setUpFunc: func() {
+			setupFunc: func() {
 				testPoller.eventsBuf[0] = syscall.EpollEvent{
 					Events: syscall.EPOLLOUT,
-					Fd: 5,
+					Fd:     5,
 				}
 			},
 			expectedMethodErr: nil,
-			expectedChanErr: nil,
+			expectedChanErr:   nil,
 			expectedPollerErr: nil,
 
 			eventForPolling: models.PollingUnit{
-				SocketFd: 5,
-				EventType: "outcome",
+				SocketFd:   5,
+				EventType:  "outcome",
 				ResultChan: make(chan error),
 			},
 			mockSys: mockSyscalls{
@@ -138,16 +139,16 @@ func TestAdd(t *testing.T) {
 		},
 		{
 			name: "fail unexp socket err",
-			setUpFunc: func() {
+			setupFunc: func() {
 				testPoller.setSocketUnexpErr(7, models.ErrSocketEvent)
 			},
 			expectedMethodErr: models.ErrSocketEvent,
-			expectedChanErr: nil,
+			expectedChanErr:   nil,
 			expectedPollerErr: nil,
 
 			eventForPolling: models.PollingUnit{
-				SocketFd: 7,
-				EventType: "outcome",
+				SocketFd:   7,
+				EventType:  "outcome",
 				ResultChan: make(chan error),
 			},
 			mockSys: mockSyscalls{
@@ -163,14 +164,14 @@ func TestAdd(t *testing.T) {
 			},
 		},
 		{
-			name: "fail ErrPollUnknownEventType",
+			name:              "fail ErrPollUnknownEventType",
 			expectedMethodErr: models.ErrPollUnknownEventType,
-			expectedChanErr: nil,
+			expectedChanErr:   nil,
 			expectedPollerErr: nil,
 
 			eventForPolling: models.PollingUnit{
-				SocketFd: 5,
-				EventType: "test",
+				SocketFd:   5,
+				EventType:  "test",
 				ResultChan: make(chan error),
 			},
 			mockSys: mockSyscalls{
@@ -186,13 +187,13 @@ func TestAdd(t *testing.T) {
 			},
 		},
 	}
-	
+
 	for _, tt := range testData {
 		t.Run(tt.name, func(t *testing.T) {
 			testPoller.sys = &tt.mockSys
 
-			if tt.setUpFunc != nil {
-				tt.setUpFunc()
+			if tt.setupFunc != nil {
+				tt.setupFunc()
 			}
 
 			err := testPoller.Add(tt.eventForPolling)
@@ -201,7 +202,7 @@ func TestAdd(t *testing.T) {
 			}
 
 			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second*1)
-			
+
 			select {
 			case err = <-tt.eventForPolling.ResultChan:
 				if err != tt.expectedChanErr {
@@ -210,7 +211,7 @@ func TestAdd(t *testing.T) {
 
 			case <-ctx.Done():
 				t.Log("Вышли из select по таймауту")
-				
+
 			}
 
 			cancelFunc()
@@ -220,8 +221,221 @@ func TestAdd(t *testing.T) {
 				t.Errorf("Ожидаемая ошибка %s, получено %s", tt.expectedPollerErr, err)
 			}
 
-			if tt.cleanUpFunc != nil {
-				tt.cleanUpFunc()
+			if tt.cleanupFunc != nil {
+				tt.cleanupFunc()
+			}
+		})
+	}
+}
+
+func TestAddTwoEvents(t *testing.T) {
+	requestCounter := 0
+	testPoller := &Epoll{
+		fd:              2,
+		mu:              sync.Mutex{},
+		eventsBuf:       make([]syscall.EpollEvent, 5),
+		readyEvents:     make([]syscall.EpollEvent, 0, 5),
+		sockets:         make(map[int]map[string][]models.PollingUnit),
+		socketsUnexpErr: make(map[int]error),
+	}
+	
+	testData := []struct {
+		name              string
+		firstEvent        models.PollingUnit
+		expectedFChanErr  error
+		secondEvent       models.PollingUnit
+		expectedSChanErr  error
+		expectedMethodErr error
+		expectedPollerErr error
+		mockSys           mockSyscalls
+	}{
+		{
+			name: "success different",
+			firstEvent: models.PollingUnit{
+				SocketFd:   5,
+				EventType:  "income",
+				ResultChan: make(chan error),
+			},
+			expectedFChanErr: nil,
+			secondEvent: models.PollingUnit{
+				SocketFd:   5,
+				EventType:  "outcome",
+				ResultChan: make(chan error),
+			},
+			expectedSChanErr:  nil,
+			expectedMethodErr: nil,
+			expectedPollerErr: nil,
+			mockSys: mockSyscalls{
+				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
+					time.Sleep(time.Second * 1)
+					testPoller.eventsBuf[0] = syscall.EpollEvent{
+						Events: syscall.EPOLLIN | syscall.EPOLLOUT,
+						Fd:     5,
+					}
+					return 1, nil
+				},
+				getSocketOptFunc: func(_, _, _ int) (int, error) {
+					return 0, nil
+				},
+				ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
+					return nil
+				},
+			},
+		},
+		{
+			name: "success same",
+			firstEvent: models.PollingUnit{
+				SocketFd:   5,
+				EventType:  "income",
+				ResultChan: make(chan error),
+			},
+			expectedFChanErr: nil,
+			secondEvent: models.PollingUnit{
+				SocketFd:   5,
+				EventType:  "income",
+				ResultChan: make(chan error),
+			},
+			expectedSChanErr:  nil,
+			expectedMethodErr: nil,
+			expectedPollerErr: nil,
+			mockSys: mockSyscalls{
+				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
+					time.Sleep(time.Second * 1)
+					testPoller.eventsBuf[0] = syscall.EpollEvent{
+						Events: syscall.EPOLLIN,
+						Fd:     5,
+					}
+					return 1, nil
+				},
+				getSocketOptFunc: func(_, _, _ int) (int, error) {
+					return 0, nil
+				},
+				ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
+					return nil
+				},
+			},
+		},
+		{
+			name: "success one ready",
+			firstEvent: models.PollingUnit{
+				SocketFd:   5,
+				EventType:  "income",
+				ResultChan: make(chan error),
+			},
+			expectedFChanErr: nil,
+			secondEvent: models.PollingUnit{
+				SocketFd:   5,
+				EventType:  "outcome",
+				ResultChan: make(chan error),
+			},
+			expectedSChanErr:  nil,
+			expectedMethodErr: nil,
+			expectedPollerErr: nil,
+			mockSys: mockSyscalls{
+				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
+					time.Sleep(time.Second * 1)
+					if requestCounter == 0 {
+						requestCounter++
+						testPoller.eventsBuf[0] = syscall.EpollEvent{
+							Events: syscall.EPOLLIN,
+							Fd:     5,
+						}
+						return 1, nil
+					}
+					return 0, nil
+				},
+				getSocketOptFunc: func(_, _, _ int) (int, error) {
+					return 0, nil
+				},
+				ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
+					return nil
+				},
+			},
+		},
+		// {
+		// 	name: "fail common",
+		// 	firstEvent: models.PollingUnit{
+		// 		SocketFd:   5,
+		// 		EventType:  "income",
+		// 		ResultChan: make(chan error),
+		// 	},
+		// 	expectedFChanErr: models.ErrSocketHUPEvent,
+		// 	secondEvent: models.PollingUnit{
+		// 		SocketFd:   5,
+		// 		EventType:  "outcome",
+		// 		ResultChan: make(chan error),
+		// 	},
+		// 	expectedSChanErr:  models.ErrSocketHUPEvent,
+		// 	expectedMethodErr: nil,
+		// 	expectedPollerErr: nil,
+		// 	mockSys: mockSyscalls{
+		// 		waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
+		// 			time.Sleep(time.Second * 1)
+		// 			testPoller.eventsBuf[0] = syscall.EpollEvent{
+		// 				Events: syscall.EPOLLHUP,
+		// 				Fd: 5,
+		// 			}
+		// 			return 1, nil
+		// 		},
+		// 		getSocketOptFunc: func(_, _, _ int) (int, error) {
+		// 			return 0, nil
+		// 		},
+		// 		ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
+		// 			return nil
+		// 		},
+		// 	},
+		// },
+	}
+
+	for _, tt := range testData {
+		t.Run(tt.name, func(t *testing.T) {
+			testPoller.sys = &tt.mockSys
+
+			err := testPoller.Add(tt.firstEvent)
+			if err != tt.expectedMethodErr {
+				t.Errorf("Ожидаемая ошибка %s, получено %s", tt.expectedMethodErr, err)
+			}
+			err = testPoller.Add(tt.secondEvent)
+			if err != tt.expectedMethodErr {
+				t.Errorf("Ожидаемая ошибка %s, получено %s", tt.expectedMethodErr, err)
+			}
+
+			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second*2)
+
+			for {
+				select {
+				case err = <-tt.firstEvent.ResultChan:
+					if err != tt.expectedFChanErr {
+						t.Errorf("Ожидаемая ошибка %s, получено %s", tt.expectedFChanErr, err)
+					}
+					tt.firstEvent.ResultChan = nil
+					if tt.secondEvent.ResultChan == nil {
+						break
+					}
+					continue
+
+				case err = <-tt.secondEvent.ResultChan:
+					if err != tt.expectedSChanErr {
+						t.Errorf("Ожидаемая ошибка %s, получено %s", tt.expectedSChanErr, err)
+					}
+					tt.secondEvent.ResultChan = nil
+					if tt.firstEvent.ResultChan == nil {
+						break
+					}
+					continue
+
+				case <-ctx.Done():
+					t.Log("Вышли из select по таймауту")
+					testPoller.DeleteSocketFromPolling(5)
+
+				}
+				break
+			}
+			cancelFunc()
+
+			err = testPoller.GetError()
+			if err != tt.expectedPollerErr {
+				t.Errorf("Ожидаемая ошибка %s, получено %s", tt.expectedPollerErr, err)
 			}
 		})
 	}
