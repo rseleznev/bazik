@@ -76,8 +76,8 @@ func (e *Epoll) Add(unit models.PollingUnit) error {
 
 	// смотрим, сколько событий мы уже ждем по сокету
 	if e.socketPollingEventsLen(unit.SocketFd) == 1 {
-		if _, ok := e.sockets[unit.SocketFd][unit.EventType]; ok {
-			e.sockets[unit.SocketFd][unit.EventType] = append(e.sockets[unit.SocketFd][unit.EventType], unit)
+		if e.isSocketEventInPolling(unit) {
+			e.addSocketEventInPolling(unit)
 			return nil
 		}
 		err := e.addInOutEvent(unit.SocketFd)
@@ -87,7 +87,7 @@ func (e *Epoll) Add(unit models.PollingUnit) error {
 		return nil
 	}
 	if e.socketPollingEventsLen(unit.SocketFd) > 1 {
-		e.sockets[unit.SocketFd][unit.EventType] = append(e.sockets[unit.SocketFd][unit.EventType], unit)
+		e.addSocketEventInPolling(unit)
 		return nil
 	}
 
@@ -120,7 +120,7 @@ func (e *Epoll) Add(unit models.PollingUnit) error {
 	}
 
 	// e.addSocketInPolling(unit)
-	e.sockets[unit.SocketFd][unit.EventType] = append(e.sockets[unit.SocketFd][unit.EventType], unit)
+	e.addSocketEventInPolling(unit)
 
 	// проверка, происходит ли поллинг. Если да - конец
 	// Если нет - запускаем его
@@ -356,6 +356,15 @@ func (e *Epoll) socketPollingEventsLen(socketFd int) int {
 // 	}
 // 	e.sockets[unit.SocketFd] = append(e.sockets[unit.SocketFd], unit)
 // }
+
+func (e *Epoll) isSocketEventInPolling(unit models.PollingUnit) bool {
+	_, ok := e.sockets[unit.SocketFd][unit.EventType]
+	return ok
+}
+
+func (e *Epoll) addSocketEventInPolling(unit models.PollingUnit) {
+	e.sockets[unit.SocketFd][unit.EventType] = append(e.sockets[unit.SocketFd][unit.EventType], unit)
+}
 
 func (e *Epoll) deleteSocketFromPolling(socketFd int) {
 	delete(e.sockets, socketFd)
