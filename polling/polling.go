@@ -137,7 +137,7 @@ func (e *Epoll) Add(unit models.PollingUnit) error {
 //
 // Крутится, пока не получит события по всем ждущим сокетам
 func (e *Epoll) wait() {
-	for {
+	for e.isPollingWithMux() {
 		n, err := e.sys.Wait(e.fd, e.eventsBuf, 0)
 		if err != nil {
 			e.setError(err)
@@ -301,6 +301,17 @@ func (e *Epoll) DeleteSocketFromPolling(socketFd int) { // написать те
 	defer e.mu.Unlock()
 	
 	e.deleteSocketFromPolling(socketFd)
+	if e.pollingSocketsLen() == 0 {
+		e.stopPolling()
+	}
+}
+
+func (e *Epoll) isPollingWithMux() bool {
+	e.mu.Lock()
+
+	defer e.mu.Unlock()
+	
+	return e.polling
 }
 
 func (e *Epoll) setError(err error) {
