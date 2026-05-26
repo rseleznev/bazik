@@ -246,25 +246,15 @@ func (e *Epoll) processEvents(readySocketsLen int) {
 		// не может быть больше двух ожидаемых событий
 		switch e.socketPollingEventsLen(s) {
 		case 1:
-			for _, units := range e.sockets[s] {
-				for _, pu := range units {
-					pu.ResultChan <- v.Err
-				}
-			}
+			e.sendResultToAllSocketUnits(s, v.Err)
 
 		case 2:
 			if (v.EventType & epollIncomeEvent != 0) && (v.EventType & epollOutcomeEvent != 0) {
-				for _, units := range e.sockets[s] {
-					for _, pu := range units {
-						pu.ResultChan <- v.Err
-					}
-				}
+				e.sendResultToAllSocketUnits(s, v.Err)
 			} else {
 				if v.EventType & epollIncomeEvent != 0 {
-					for _, pu := range e.sockets[s]["income"] {
-						pu.ResultChan <- v.Err
-					}
-					delete(e.sockets[s], "income")
+					e.sendResultToIncomeSocketUnits(s, v.Err)
+					e.deleteSocketEventsFromPolling(s, "income")
 					err := e.addOutcomeEvent(s)
 					if err != nil {
 						return
@@ -275,10 +265,8 @@ func (e *Epoll) processEvents(readySocketsLen int) {
 					}
 					continue
 				} else {
-					for _, pu := range e.sockets[s]["outcome"] {
-						pu.ResultChan <- v.Err
-					}
-					delete(e.sockets[s], "outcome")
+					e.sendResultToOutcomeSocketUnits(s, v.Err)
+					e.deleteSocketEventsFromPolling(s, "outcome")
 					err := e.addIncomeEvent(s)
 					if err != nil {
 						return
@@ -365,6 +353,10 @@ func (e *Epoll) isSocketEventInPolling(unit models.PollingUnit) bool {
 
 func (e *Epoll) addSocketEventInPolling(unit models.PollingUnit) {
 	e.sockets[unit.SocketFd][unit.EventType] = append(e.sockets[unit.SocketFd][unit.EventType], unit)
+}
+
+func (e *Epoll) deleteSocketEventsFromPolling(socketFd int, eventType string) {
+	delete(e.sockets[socketFd], eventType)
 }
 
 func (e *Epoll) deleteSocketFromPolling(socketFd int) {
@@ -478,6 +470,26 @@ func (e *Epoll) checkEventType(eventType string) bool {
 // func (e *Epoll) getSocketEventType(socketFd int) string {
 // 	return e.sockets[socketFd].EventType
 // }
+
+func (e *Epoll) sendResultToAllSocketUnits(socketFd int, err error)  {
+	for _, units := range e.sockets[socketFd] {
+		for _, unit := range units {
+			unit.ResultChan <- err
+		}
+	}
+}
+
+func (e *Epoll) sendResultToIncomeSocketUnits(socketFd int, err error)  {
+	for _, unit := range e.sockets[socketFd]["income"] {
+		unit.ResultChan <- err
+	}
+}
+
+func (e *Epoll) sendResultToOutcomeSocketUnits(socketFd int, err error)  {
+	for _, unit := range e.sockets[socketFd]["outcome"] {
+		unit.ResultChan <- err
+	}
+}
 
 func (e *Epoll) addReadyEvents(events []syscall.EpollEvent) {
 	e.readyEvents = append(e.readyEvents, events...)
