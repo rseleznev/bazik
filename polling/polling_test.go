@@ -136,107 +136,55 @@ func TestAdd(t *testing.T) {
 				},
 			},
 		},
-		// {
-		// 	name: "fail unexp socket err",
-		// 	setUpFunc: func() {
-		// 		testPoller.setSocketUnexpErr(7, models.ErrSocketEvent)
-		// 	},
-		// 	expectedMethodErr: models.ErrSocketEvent,
-		// 	expectedChanErr: nil,
-		// 	expectedPollerErr: nil,
+		{
+			name: "fail unexp socket err",
+			setUpFunc: func() {
+				testPoller.setSocketUnexpErr(7, models.ErrSocketEvent)
+			},
+			expectedMethodErr: models.ErrSocketEvent,
+			expectedChanErr: nil,
+			expectedPollerErr: nil,
 
-		// 	eventForPolling: models.PollingUnit{
-		// 		SocketFd: 7,
-		// 		EventType: "outcome",
-		// 		ResultChan: make(chan error),
-		// 	},
-		// 	mockSys: mockSyscalls{
-		// 		waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
-		// 			return 1, nil
-		// 		},
-		// 		getSocketOptFunc: func(_, _, _ int) (int, error) {
-		// 			return 0, nil
-		// 		},
-		// 		ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
-		// 			return nil
-		// 		},
-		// 	},
-		// },
-		// {
-		// 	name: "fail ErrSocketAlreadyAdded",
-		// 	setUpFunc: func() {
-		// 		testPoller.sockets[7] = models.PollingUnit{}
-		// 	},
-		// 	cleanUpFunc: func() {
-		// 		delete(testPoller.sockets, 7)
-		// 	},
-		// 	expectedMethodErr: models.ErrSocketAlreadyAdded,
-		// 	expectedChanErr: nil,
-		// 	expectedPollerErr: nil,
+			eventForPolling: models.PollingUnit{
+				SocketFd: 7,
+				EventType: "outcome",
+				ResultChan: make(chan error),
+			},
+			mockSys: mockSyscalls{
+				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
+					return 1, nil
+				},
+				getSocketOptFunc: func(_, _, _ int) (int, error) {
+					return 0, nil
+				},
+				ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
+					return nil
+				},
+			},
+		},
+		{
+			name: "fail ErrPollUnknownEventType",
+			expectedMethodErr: models.ErrPollUnknownEventType,
+			expectedChanErr: nil,
+			expectedPollerErr: nil,
 
-		// 	eventForPolling: models.PollingUnit{
-		// 		SocketFd: 7,
-		// 		EventType: "outcome",
-		// 		ResultChan: make(chan error),
-		// 	},
-		// 	mockSys: mockSyscalls{
-		// 		waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
-		// 			return 1, nil
-		// 		},
-		// 		getSocketOptFunc: func(_, _, _ int) (int, error) {
-		// 			return 0, nil
-		// 		},
-		// 		ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
-		// 			return nil
-		// 		},
-		// 	},
-		// },
-		// {
-		// 	name: "fail ErrPollUnknownEventType",
-		// 	expectedMethodErr: models.ErrPollUnknownEventType,
-		// 	expectedChanErr: nil,
-		// 	expectedPollerErr: nil,
-
-		// 	eventForPolling: models.PollingUnit{
-		// 		SocketFd: 5,
-		// 		EventType: "test",
-		// 		ResultChan: make(chan error),
-		// 	},
-		// 	mockSys: mockSyscalls{
-		// 		waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
-		// 			return 1, nil
-		// 		},
-		// 		getSocketOptFunc: func(_, _, _ int) (int, error) {
-		// 			return 0, nil
-		// 		},
-		// 		ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
-		// 			return nil
-		// 		},
-		// 	},
-		// },
-		// {
-		// 	name: "fail ctl ErrPollBadFD",
-		// 	expectedMethodErr: models.ErrPollBadFD,
-		// 	expectedChanErr: nil,
-		// 	expectedPollerErr: nil,
-
-		// 	eventForPolling: models.PollingUnit{
-		// 		SocketFd: 5,
-		// 		EventType: "connect",
-		// 		ResultChan: make(chan error),
-		// 	},
-		// 	mockSys: mockSyscalls{
-		// 		waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
-		// 			return 1, nil
-		// 		},
-		// 		getSocketOptFunc: func(_, _, _ int) (int, error) {
-		// 			return 0, nil
-		// 		},
-		// 		ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
-		// 			return syscall.EBADF
-		// 		},
-		// 	},
-		// },
+			eventForPolling: models.PollingUnit{
+				SocketFd: 5,
+				EventType: "test",
+				ResultChan: make(chan error),
+			},
+			mockSys: mockSyscalls{
+				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
+					return 1, nil
+				},
+				getSocketOptFunc: func(_, _, _ int) (int, error) {
+					return 0, nil
+				},
+				ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
+					return nil
+				},
+			},
+		},
 	}
 	
 	for _, tt := range testData {
