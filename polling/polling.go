@@ -84,6 +84,7 @@ func (e *Epoll) Add(unit models.PollingUnit) error {
 		if err != nil {
 			return err
 		}
+		e.addSocketEventInPolling(unit)
 		return nil
 	}
 	if e.socketPollingEventsLen(unit.SocketFd) > 1 {
