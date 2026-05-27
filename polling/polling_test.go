@@ -243,9 +243,10 @@ func TestAddTwoEvents(t *testing.T) {
 		name              string
 		firstEvent        models.PollingUnit
 		expectedFChanErr  error
+		FChanErrChecker func(error)
 		secondEvent       models.PollingUnit
 		expectedSChanErr  error
-		chanErrChecker func(error)
+		SChanErrChecker func(error)
 		expectedMethodErr error
 		expectedPollerErr error
 		mockSys           mockSyscalls
@@ -317,7 +318,7 @@ func TestAddTwoEvents(t *testing.T) {
 			},
 		},
 		{
-			name: "success one ready",
+			name: "success only one ready",
 			firstEvent: models.PollingUnit{
 				SocketFd:   5,
 				EventType:  "income",
@@ -354,6 +355,48 @@ func TestAddTwoEvents(t *testing.T) {
 			},
 		},
 		{
+			name: "two sockets (one success, one fail)",
+			firstEvent: models.PollingUnit{
+				SocketFd:   5,
+				EventType:  "income",
+				ResultChan: make(chan error),
+			},
+			expectedFChanErr: models.ErrSocketHUPEvent,
+			FChanErrChecker: func(err error) {
+				if !errors.Is(err, models.ErrSocketHUPEvent) {
+					t.Errorf("Ожидаемая ошибка %s, получено %s", models.ErrSocketHUPEvent, err)
+				}
+			},
+			secondEvent: models.PollingUnit{
+				SocketFd:   6,
+				EventType:  "income",
+				ResultChan: make(chan error),
+			},
+			expectedSChanErr:  nil,
+			expectedMethodErr: nil,
+			expectedPollerErr: nil,
+			mockSys: mockSyscalls{
+				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
+					time.Sleep(time.Millisecond * 300)
+					testPoller.eventsBuf[0] = syscall.EpollEvent{
+						Events: syscall.EPOLLHUP,
+						Fd: 5,
+					}
+					testPoller.eventsBuf[1] = syscall.EpollEvent{
+						Events: syscall.EPOLLIN,
+						Fd: 6,
+					}
+					return 2, nil
+				},
+				getSocketOptFunc: func(_, _, _ int) (int, error) {
+					return 0, nil
+				},
+				ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
+					return nil
+				},
+			},
+		},
+		{
 			name: "fail common",
 			firstEvent: models.PollingUnit{
 				SocketFd:   5,
@@ -361,13 +404,18 @@ func TestAddTwoEvents(t *testing.T) {
 				ResultChan: make(chan error),
 			},
 			expectedFChanErr: models.ErrSocketHUPEvent,
+			FChanErrChecker: func(err error) {
+				if !errors.Is(err, models.ErrSocketHUPEvent) {
+					t.Errorf("Ожидаемая ошибка %s, получено %s", models.ErrSocketHUPEvent, err)
+				}
+			},
 			secondEvent: models.PollingUnit{
 				SocketFd:   5,
 				EventType:  "outcome",
 				ResultChan: make(chan error),
 			},
 			expectedSChanErr:  models.ErrSocketHUPEvent,
-			chanErrChecker: func(err error) {
+			SChanErrChecker: func(err error) {
 				if !errors.Is(err, models.ErrSocketHUPEvent) {
 					t.Errorf("Ожидаемая ошибка %s, получено %s", models.ErrSocketHUPEvent, err)
 				}
@@ -413,8 +461,8 @@ func TestAddTwoEvents(t *testing.T) {
 			for {
 				select {
 				case err = <-tt.firstEvent.ResultChan:
-					if tt.chanErrChecker != nil {
-						tt.chanErrChecker(err)
+					if tt.FChanErrChecker != nil {
+						tt.FChanErrChecker(err)
 					} else {
 						if err != tt.expectedFChanErr {
 							t.Errorf("Ожидаемая ошибка %s, получено %s", tt.expectedFChanErr, err)
@@ -427,8 +475,8 @@ func TestAddTwoEvents(t *testing.T) {
 					continue
 
 				case err = <-tt.secondEvent.ResultChan:
-					if tt.chanErrChecker != nil {
-						tt.chanErrChecker(err)
+					if tt.SChanErrChecker != nil {
+						tt.SChanErrChecker(err)
 					} else {
 						if err != tt.expectedSChanErr {
 							t.Errorf("Ожидаемая ошибка %s, получено %s", tt.expectedSChanErr, err)
