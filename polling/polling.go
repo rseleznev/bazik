@@ -126,7 +126,6 @@ func (e *Epoll) Add(unit models.PollingUnit) error {
 	// проверка, происходит ли поллинг. Если да - конец
 	// Если нет - запускаем его
 	if !e.isPolling() {
-		e.startPolling()
 		go e.wait()
 	}
 
@@ -137,7 +136,13 @@ func (e *Epoll) Add(unit models.PollingUnit) error {
 //
 // Крутится, пока не получит события по всем ждущим сокетам
 func (e *Epoll) wait() {
-	for e.isPollingWithMux() {
+	e.mu.Lock()
+	if e.isPolling() {
+		return
+	}
+	e.startPolling()
+	e.mu.Unlock()
+	for {
 		n, err := e.sys.Wait(e.fd, e.eventsBuf, 0)
 		if err != nil {
 			e.setError(err)
@@ -158,6 +163,13 @@ func (e *Epoll) wait() {
 			}
 			e.mu.Unlock()
 		}
+		e.mu.Lock()
+		if e.pollingSocketsLen() == 0 {
+			e.stopPolling()
+			e.mu.Unlock()
+			break
+		}
+		e.mu.Unlock()
 		runtime.Gosched()
 	}
 }
@@ -260,7 +272,6 @@ func (e *Epoll) processEvents(readySocketsLen int) {
 						return
 					}
 					if !e.isPolling() {
-						e.startPolling()
 						go e.wait()
 					}
 					continue
@@ -272,7 +283,6 @@ func (e *Epoll) processEvents(readySocketsLen int) {
 						return
 					}
 					if !e.isPolling() {
-						e.startPolling()
 						go e.wait()
 					}
 					continue
@@ -295,23 +305,23 @@ func (e *Epoll) processEvents(readySocketsLen int) {
 	e.clearReadyEvents() // удаляем завершенные события
 }
 
-func (e *Epoll) DeleteSocketFromPolling(socketFd int) { // написать тесты
+func (e *Epoll) DeleteSocketFromPolling(socketFd int) {
 	e.mu.Lock()
 
 	defer e.mu.Unlock()
 	
 	e.deleteSocketFromPolling(socketFd)
-	if e.pollingSocketsLen() == 0 {
-		e.stopPolling()
-	}
 }
 
-func (e *Epoll) isPollingWithMux() bool {
+func (e *Epoll) DeleteSocketEventFromPolling(socketFd int, eventType string) {
 	e.mu.Lock()
 
 	defer e.mu.Unlock()
 	
-	return e.polling
+	e.deleteSocketEventsFromPolling(socketFd, eventType)
+	if e.socketPollingEventsLen(socketFd) == 0 {
+		e.deleteSocketFromPolling(socketFd)
+	}
 }
 
 func (e *Epoll) setError(err error) {
@@ -335,11 +345,11 @@ func (e *Epoll) pushError() {
 
 	defer e.mu.Unlock()
 
-	// err := e.GetError()
+	err := e.GetError()
 
-	// for s := range e.sockets {
-	// 	e.getSocketResultChan(s) <- err
-	// }
+	for s := range e.sockets {
+		e.sendResultToAllSocketUnits(s, err)
+	}
 }
 
 
