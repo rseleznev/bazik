@@ -2,8 +2,8 @@ package polling
 
 import (
 	"context"
-	"sync"
 	"errors"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -229,7 +229,7 @@ func TestAdd(t *testing.T) {
 }
 
 func TestAddTwoEvents(t *testing.T) {
-	// requestCounter := 0
+	requestCounter := 0
 	testPoller := &Epoll{
 		fd:              2,
 		mu:              sync.Mutex{},
@@ -316,43 +316,43 @@ func TestAddTwoEvents(t *testing.T) {
 				},
 			},
 		},
-		// {
-		// 	name: "success one ready",
-		// 	firstEvent: models.PollingUnit{
-		// 		SocketFd:   5,
-		// 		EventType:  "income",
-		// 		ResultChan: make(chan error),
-		// 	},
-		// 	expectedFChanErr: nil,
-		// 	secondEvent: models.PollingUnit{
-		// 		SocketFd:   5,
-		// 		EventType:  "outcome",
-		// 		ResultChan: make(chan error),
-		// 	},
-		// 	expectedSChanErr:  nil,
-		// 	expectedMethodErr: nil,
-		// 	expectedPollerErr: nil,
-		// 	mockSys: mockSyscalls{
-		// 		waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
-		// 			time.Sleep(time.Millisecond * 300)
-		// 			if requestCounter == 0 {
-		// 				requestCounter++
-		// 				testPoller.eventsBuf[0] = syscall.EpollEvent{
-		// 					Events: syscall.EPOLLIN,
-		// 					Fd:     5,
-		// 				}
-		// 				return 1, nil
-		// 			}
-		// 			return 0, nil
-		// 		},
-		// 		getSocketOptFunc: func(_, _, _ int) (int, error) {
-		// 			return 0, nil
-		// 		},
-		// 		ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
-		// 			return nil
-		// 		},
-		// 	},
-		// },
+		{
+			name: "success one ready",
+			firstEvent: models.PollingUnit{
+				SocketFd:   5,
+				EventType:  "income",
+				ResultChan: make(chan error),
+			},
+			expectedFChanErr: nil,
+			secondEvent: models.PollingUnit{
+				SocketFd:   5,
+				EventType:  "outcome",
+				ResultChan: make(chan error),
+			},
+			expectedSChanErr:  nil,
+			expectedMethodErr: nil,
+			expectedPollerErr: nil,
+			mockSys: mockSyscalls{
+				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
+					if requestCounter == 0 {
+						time.Sleep(time.Millisecond * 300)
+						requestCounter++
+						testPoller.eventsBuf[0] = syscall.EpollEvent{
+							Events: syscall.EPOLLIN,
+							Fd:     5,
+						}
+						return 1, nil
+					}
+					return 0, nil
+				},
+				getSocketOptFunc: func(_, _, _ int) (int, error) {
+					return 0, nil
+				},
+				ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
+					return nil
+				},
+			},
+		},
 		{
 			name: "fail common",
 			firstEvent: models.PollingUnit{
@@ -395,7 +395,9 @@ func TestAddTwoEvents(t *testing.T) {
 
 	for _, tt := range testData {
 		t.Run(tt.name, func(t *testing.T) {
+			testPoller.mu.Lock()
 			testPoller.sys = &tt.mockSys
+			testPoller.mu.Unlock()
 
 			err := testPoller.Add(tt.firstEvent)
 			if err != tt.expectedMethodErr {
