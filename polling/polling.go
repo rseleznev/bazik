@@ -138,6 +138,7 @@ func (e *Epoll) Add(unit models.PollingUnit) error {
 func (e *Epoll) wait() {
 	e.mu.Lock()
 	if e.isPolling() {
+		e.mu.Unlock()
 		return
 	}
 	e.startPolling()
