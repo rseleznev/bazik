@@ -220,28 +220,12 @@ func (e *Epoll) processEvents(readySocketsLen int) {
 			readySockets[socketFd] = models.PollingResult{
 				EventType: e,
 			}
-			// if e.getSocketEventType(socketFd) == "income" { // если ждем именно это событие
-			// 	readySockets[socketFd] = models.PollingResult{}
-
-			// 	continue
-			// }
-			// readySockets[socketFd] = models.PollingResult{
-			// 	Err: models.ErrPollDiffEventType,
-			// }
 		}
 		if v.Events & syscall.EPOLLOUT != 0 { // буфер отправки пуст
 			e := readySockets[socketFd].EventType | epollOutcomeEvent
 			readySockets[socketFd] = models.PollingResult{
 				EventType: e,
 			}
-			// if e.getSocketEventType(socketFd) == "outcome" || e.getSocketEventType(socketFd) == "connect" { // если ждем именно это событие
-			// 	readySockets[socketFd] = models.PollingResult{}
-
-			// 	continue
-			// }
-			// readySockets[socketFd] = models.PollingResult{
-			// 	Err: models.ErrPollDiffEventType,
-			// }
 		}
 	}
 
@@ -252,9 +236,6 @@ func (e *Epoll) processEvents(readySocketsLen int) {
 
 	// возвращаем результаты, ждущие потоки могут продолжить свое выполнение
 	for s, v := range readySockets {
-		// если ждем 1 событие - закидываем результат во все ждущие каналы [конец]
-		// если ждем 2 события но приходит одно - идем только по соответствующим каналам и закидываем результат [продолжаем]
-		// если ждем 2 события и пришли оба - идем по всем каналам и закидываем результат [конец]
 
 		// не может быть больше двух ожидаемых событий
 		switch e.socketPollingEventsLen(s) {
@@ -294,13 +275,6 @@ func (e *Epoll) processEvents(readySocketsLen int) {
 			e.setSocketUnexpErr(s, v.Err)
 
 		}
-		
-		// if ch := e.getSocketResultChan(s); ch == nil {
-		// 	e.setSocketUnexpErr(s, v.Err) // случай, когда пришел результат, который никто не ждет
-		// } else {
-		// 	ch <- v.Err
-		// }
-
 		e.deleteSocketFromPolling(s)
 	}
 	e.clearReadyEvents() // удаляем завершенные события
@@ -360,13 +334,6 @@ func (e *Epoll) pushError() {
 func (e *Epoll) socketPollingEventsLen(socketFd int) int {
 	return len(e.sockets[socketFd])
 }
-
-// func (e *Epoll) addSocketInPolling(unit models.PollingUnit) {
-// 	if e.sockets[unit.SocketFd] == nil {
-// 		e.sockets[unit.SocketFd] = make([]models.PollingUnit, 0, 2)
-// 	}
-// 	e.sockets[unit.SocketFd] = append(e.sockets[unit.SocketFd], unit)
-// }
 
 func (e *Epoll) isSocketEventInPolling(unit models.PollingUnit) bool {
 	_, ok := e.sockets[unit.SocketFd][unit.EventType]
@@ -485,17 +452,12 @@ func (e *Epoll) checkEventType(eventType string) bool {
 
 // Подумать над удалением сокета из interest list через ctl.EPOLL_CTL_DEL
 
-// func (e *Epoll) getSocketResultChan(socketFd int) chan error {
-// 	return e.sockets[socketFd].ResultChan
-// }
-
-// func (e *Epoll) getSocketEventType(socketFd int) string {
-// 	return e.sockets[socketFd].EventType
-// }
-
 func (e *Epoll) sendResultToAllSocketUnits(socketFd int, err error)  {
 	for _, units := range e.sockets[socketFd] {
 		for _, unit := range units {
+			if unit.ResultChan == nil {
+				continue
+			}
 			unit.ResultChan <- err
 		}
 	}
