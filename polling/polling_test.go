@@ -43,7 +43,6 @@ func TestAdd(t *testing.T) {
 	testData := []struct {
 		name              string
 		setupFunc         func()
-		cleanupFunc       func()
 		expectedMethodErr error
 		expectedChanErr   error
 		expectedPollerErr error
@@ -52,12 +51,6 @@ func TestAdd(t *testing.T) {
 	}{
 		{
 			name: "success connect",
-			setupFunc: func() {
-				testPoller.eventsBuf[0] = syscall.EpollEvent{
-					Events: syscall.EPOLLOUT,
-					Fd:     5,
-				}
-			},
 			expectedMethodErr: nil,
 			expectedChanErr:   nil,
 			expectedPollerErr: nil,
@@ -69,6 +62,10 @@ func TestAdd(t *testing.T) {
 			},
 			mockSys: mockSyscalls{
 				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
+					testPoller.eventsBuf[0] = syscall.EpollEvent{
+						Events: syscall.EPOLLOUT,
+						Fd:     5,
+					}
 					return 1, nil
 				},
 				getSocketOptFunc: func(_, _, _ int) (int, error) {
@@ -81,12 +78,6 @@ func TestAdd(t *testing.T) {
 		},
 		{
 			name: "success income",
-			setupFunc: func() {
-				testPoller.eventsBuf[0] = syscall.EpollEvent{
-					Events: syscall.EPOLLIN,
-					Fd:     5,
-				}
-			},
 			expectedMethodErr: nil,
 			expectedChanErr:   nil,
 			expectedPollerErr: nil,
@@ -98,6 +89,10 @@ func TestAdd(t *testing.T) {
 			},
 			mockSys: mockSyscalls{
 				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
+					testPoller.eventsBuf[0] = syscall.EpollEvent{
+						Events: syscall.EPOLLIN,
+						Fd:     5,
+					}
 					return 1, nil
 				},
 				getSocketOptFunc: func(_, _, _ int) (int, error) {
@@ -110,12 +105,6 @@ func TestAdd(t *testing.T) {
 		},
 		{
 			name: "success outcome",
-			setupFunc: func() {
-				testPoller.eventsBuf[0] = syscall.EpollEvent{
-					Events: syscall.EPOLLOUT,
-					Fd:     5,
-				}
-			},
 			expectedMethodErr: nil,
 			expectedChanErr:   nil,
 			expectedPollerErr: nil,
@@ -127,6 +116,10 @@ func TestAdd(t *testing.T) {
 			},
 			mockSys: mockSyscalls{
 				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
+					testPoller.eventsBuf[0] = syscall.EpollEvent{
+						Events: syscall.EPOLLOUT,
+						Fd:     5,
+					}
 					return 1, nil
 				},
 				getSocketOptFunc: func(_, _, _ int) (int, error) {
@@ -213,16 +206,11 @@ func TestAdd(t *testing.T) {
 				t.Log("Вышли из select по таймауту")
 
 			}
-
 			cancelFunc()
 
 			err = testPoller.GetError()
 			if err != tt.expectedPollerErr {
 				t.Errorf("Ожидаемая ошибка %s, получено %s", tt.expectedPollerErr, err)
-			}
-
-			if tt.cleanupFunc != nil {
-				tt.cleanupFunc()
 			}
 		})
 	}
@@ -240,7 +228,6 @@ func Test_wait(t *testing.T) {
 	
 	testData := []struct{
 		name string
-		setUpFunc func()
 		expectedChanErr error
 		expectedPollerErr error
 		eventForPolling models.PollingUnit
