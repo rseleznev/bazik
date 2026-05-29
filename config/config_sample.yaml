@@ -1,5 +1,5 @@
 ip: "25.145.82.0"
-port: "5000"
+port: 5000
 proto: tcp
 balancing_alg: random
 proxy_mode: zero-copy

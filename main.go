@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 
+	"github.com/rseleznev/bazik/config"
 	"github.com/rseleznev/bazik/internal/balancer"
 	"github.com/rseleznev/bazik/internal/models"
 	"github.com/rseleznev/bazik/internal/network"
@@ -17,6 +18,7 @@ func main() {
 	net := network.NewNet(poller)
 
 	// парсим конфиг
+	config.Parse("./config/config_sample.yaml")
 
 	b := balancer.NewBalancer(
 		&models.BalancerOptions{

@@ -1,6 +1,13 @@
 package config
 
-import "github.com/rseleznev/bazik/internal/models"
+import (
+	"fmt"
+	"log"
+	"os"
+	 "gopkg.in/yaml.v3"
+
+	"github.com/rseleznev/bazik/internal/models"
+)
 
 type Config struct {	
 	IP string `yaml:"ip"`
@@ -85,6 +92,14 @@ type BalancerConfig struct {
 	Servers []*models.ServerOptions
 }
 
-func (c *Config) Parse(path string) []BalancerConfig {
+func Parse(path string) []BalancerConfig {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	c := &Config{}
+	yaml.Unmarshal(b, c)
+	fmt.Printf("%+v", c)
+	
 	return nil
 }
