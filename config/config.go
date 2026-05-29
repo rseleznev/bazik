@@ -3,24 +3,24 @@ package config
 import "github.com/rseleznev/bazik/internal/models"
 
 type Config struct {	
-	IP string
-	Port int
+	IP string `yaml:"ip"`
+	Port int `yaml:"port"`
 
 	// Протокол/уровень балансировки (tcp/udp/http)
-	Proto string
+	Proto string `yaml:"proto"`
 
 	// Алгоритм балансировки
-	BalancerAlg string
+	BalancingAlg string `yaml:"balancing_alg"`
 
 	// Режим проксирования
 	//
 	// 	- zero-copy - прямой перенос данных между сокетами без копирования в user space (возможна потеря данных)
 	// 	- guaranteed delivery - данные копируются в user space, новые сообщения от отправителя 
 	// 	не принимаются (поток в обратную сторону продолжает работу), пока не будет получен ACK
-	ProxyMode string
+	ProxyMode string `yaml:"proxy_mode"`
 
 	// Время в миллисекундах, за которое должна выполняться каждая операция
-	MainTimeout int
+	MainTimeout int `yaml:"main_timeout"`
 	// Время в миллисекундах, за которое должен прийти ACK на отправленный пакет (TCP_USER_TIMEOUT)
 	//
 	// 0 - системный дефолт (15-20 минут)
@@ -42,41 +42,41 @@ type Config struct {
 	//
 	// Если RetryAmount >= 1, может нарушиться целостность данных, т.к.
 	// сначала будут переданы те данные, которые остались с неудачной попытки
-	RetryAmount int
+	RetryAmount int `yaml:"retry_amount"`
 
 	// Максимальное кол-во клиентов.
 	//
 	// Когда лимит будет превышен, последующие клиенты будут получать ошибку ECONNREFUSED,
 	// пока кол-во активных соединений не будет уменьшено
-	MaxClientsAmount int
+	MaxClientsAmount int `yaml:"max_clients_amount"`
 
 	// Максимальное время бездействия соединения
-	MaxIdleSeconds int
+	MaxIdleSeconds int `yaml:"max_idle_seconds"`
 
-	// Отключение пула серверных сокетов
+	// Отключение пула серверных соединений
 	// По умолчанию false, то есть пул создается
-	DisableSocksPool bool
-	// Максимальные размеры пула сокетов для каждого сервера.
+	DisableConnsPool bool `yaml:"disable_conns_pool"`
+	// Максимальные размеры пула соединений для каждого сервера.
 	// Должен быть больше 0. По умолчанию 10
-	MaxSocksPoolLen int
-	// Начальное количество сокетов в пуле для каждого сервера.
-	// Количество может увеличиваться до MaxServerSocksPoolLen в зависимости
-	// от нагрузки, и потом снова снижается до InitialServerSocksPoolLen.
-	// Не должен быть больше MaxServerSocksPoolLen. По умолчанию 3
-	InitialSocksPoolLen int
+	MaxConnsPoolLen int `yaml:"max_conns_pool_len"`
+	// Начальное количество соединений в пуле для каждого сервера.
+	// Количество может увеличиваться до MaxServerConnsPoolLen в зависимости
+	// от нагрузки, и потом снова снижается до InitialServerConnsPoolLen.
+	// Не должен быть больше MaxServerConnsPoolLen. По умолчанию 3
+	InitialConnsPoolLen int `yaml:"initial_conns_pool_len"`
 
 	// ------------------------------------
 
 	// Список доступных серверов
 	Servers []struct {
-		Address string
+		Address string `yaml:"address"`
 
-		RetryAmount int
-		MaxClientsAmount int
-		MaxIdleSeconds int
-		DisableSocksPool bool
-		MaxSocksPoolLen int
-		InitialSocksPoolLen int
+		RetryAmount int `yaml:"retry_amount"`
+		MaxClientsAmount int `yaml:"max_clients_amount"`
+		MaxIdleSeconds int `yaml:"max_idle_seconds"`
+		DisableSocksPool bool `yaml:"disable_conns_pool"`
+		MaxSocksPoolLen int `yaml:"max_conns_pool_len"`
+		InitialSocksPoolLen int `yaml:"initial_conns_pool_len"`
 	}
 }
 
