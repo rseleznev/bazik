@@ -4,21 +4,13 @@ proto: tcp
 balancing_alg: random
 proxy_mode: zero-copy
 main_timeout: 500
-retry_amount: 3
-max_clients_amount: 2000
+retry_amount: 0
+max_clients_amount: 5
 max_idle_seconds: 300
 servers:
-  - address: "127.0.0.1:23769"
-        
-  - address: "127.0.0.1:23769"
-    retry_amount: 1
-    max_response_seconds: 60
-        
-  - address: "127.0.0.1:23769"
-    retry_amount: 5
-    max_response_seconds: 120
-    max_clients_amount: 500
-    max_idle_seconds: 10
+  - address: "127.0.0.1:6379"
+    max_conns_pool_len: 10
+    initial_conns_pool_len: 3
 
 # # Несколько балансировщиков
 # ports:
