@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"log"
 	"os"
-	 "gopkg.in/yaml.v3"
+	"strconv"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/rseleznev/bazik/internal/models"
 )
@@ -93,13 +95,120 @@ type BalancerConfig struct {
 }
 
 func Parse(path string) []BalancerConfig {
-	b, err := os.ReadFile(path)
+	balancerConf := make([]BalancerConfig, 0, 3)
+	srvOptions := make([]*models.ServerOptions, 0, 10)
+	d, err := os.ReadFile(path)
 	if err != nil {
 		log.Fatal(err)
 	}
 	c := &Config{}
-	yaml.Unmarshal(b, c)
-	fmt.Printf("%+v", c)
+	yaml.Unmarshal(d, c)
+	portStr := strconv.Itoa(c.Port)
+	ipBytes, err := parseIp(c.IP)
+	if err != nil {
+		log.Fatal(err)
+	}
+	bO := &models.BalancerOptions{
+		Addr: models.Address{
+			Raw: c.IP + ":" + portStr,
+			IP: ipBytes,
+			Port: c.Port,
+		},
+		Proto: c.Proto,
+		BalancingAlg: c.BalancingAlg,
+		MainTimeout: c.MainTimeout,
+		RetryAmount: c.RetryAmount,
+		MaxClientsAmount: c.MaxClientsAmount,
+		MaxIdleSeconds: c.MaxIdleSeconds,
+		DisableConnsPool: c.DisableConnsPool,
+		MaxConnsPoolLen: c.MaxConnsPoolLen,
+		InitialConnsPoolLen: c.InitialConnsPoolLen,
+	}
+	for _, v := range c.Servers {
+		ipBytes, port, err := parseIpAndPort(v.Address)
+		if err != nil {
+			log.Fatal(err)
+		}
+		sO := &models.ServerOptions{
+			Addr: models.Address{
+				Raw: v.Address,
+				IP: ipBytes,
+				Port: port,
+			},
+			RetryAmount: v.RetryAmount,
+			MaxClientsAmount: v.MaxClientsAmount,
+			MaxIdleSeconds: v.MaxIdleSeconds,
+			DisableConnsPool: v.DisableConnsPool,
+			MaxConnsPoolLen: v.MaxConnsPoolLen,
+			InitialConnsPoolLen: v.InitialConnsPoolLen,
+		}
+		fmt.Printf("%+v \n", sO)
+		srvOptions = append(srvOptions, sO)
+	}
+	balancerConf = append(balancerConf, BalancerConfig{
+		Balancer: bO,
+		Servers: srvOptions,
+	})
+	fmt.Printf("%+v \n", bO)
+	fmt.Printf("%+v \n", &srvOptions)
 	
-	return nil
+	return balancerConf
+}
+
+func parseIp(raw string) ([4]byte, error) {
+	var result [4]byte
+	buf := make([]byte, 0, 3)
+	var i, r int
+
+	for i < len(raw) {
+		if raw[i] == '.' {
+			i++
+			n, err := strconv.Atoi(string(buf))
+			if err != nil {
+				return [4]byte{}, err
+			}
+			result[r] = byte(n)
+			buf = buf[:0]
+			r++
+			continue
+		}
+		if raw[i] == ':' {
+			break
+		}
+		buf = append(buf, raw[i])
+		i++
+	}
+	return result, nil
+}
+
+func parseIpAndPort(raw string) ([4]byte, int, error) {
+	var result [4]byte
+	buf := make([]byte, 0, 3)
+	var i, r, p int
+
+	for i < len(raw) {
+		if raw[i] == '.' {
+			i++
+			n, err := strconv.Atoi(string(buf))
+			if err != nil {
+				return [4]byte{}, 0, err
+			}
+			result[r] = byte(n)
+			buf = buf[:0]
+			r++
+			continue
+		}
+		if raw[i] == ':' {
+			i++
+			var err error
+			p, err = strconv.Atoi(string(raw[i:]))
+			if err != nil {
+				return [4]byte{}, 0, err
+			}
+			break
+		}
+		buf = append(buf, raw[i])
+		i++
+	}
+	return result, p, nil
 }
