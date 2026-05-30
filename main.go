@@ -27,13 +27,13 @@ func main() {
 				Port: 9000,
 			},
 			Proto: "tcp",
-			BalancerAlg: "random",
+			BalancingAlg: "random",
 			MainTimeout: 500,
 			RetryAmount: 0,
 			MaxClientsAmount: 3,
 			MaxIdleSeconds: 300,
-			MaxSocksPoolLen: 10,
-			InitialSocksPoolLen: 3,
+			MaxConnsPoolLen: 10,
+			InitialConnsPoolLen: 3,
 		}, 
 		[]*models.ServerOptions{
 			{
@@ -44,8 +44,8 @@ func main() {
 				RetryAmount: 0,
 				MaxClientsAmount: 3,
 				MaxIdleSeconds: 300,
-				MaxSocksPoolLen: 10,
-				InitialSocksPoolLen: 3,
+				MaxConnsPoolLen: 10,
+				InitialConnsPoolLen: 3,
 			},
 		},
 		net)
