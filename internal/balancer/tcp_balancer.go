@@ -136,7 +136,7 @@ func (b *TCPBalancer) process(c *chat) {
 }
 
 func (b *TCPBalancer) findServer() *server {
-	switch b.opts.BalancerAlg {
+	switch b.opts.BalancingAlg {
 	case "random":
 		n := rand.Intn(len(b.servers))
 		return b.servers[n]

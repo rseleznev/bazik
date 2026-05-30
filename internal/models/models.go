@@ -25,15 +25,15 @@ type Address struct {
 type BalancerOptions struct {
 	Addr Address
 	Proto string
-	BalancerAlg string
+	BalancingAlg string
 	
 	MainTimeout int
 	RetryAmount int
 	MaxClientsAmount int
 	MaxIdleSeconds int
-	DisableSocksPool bool
-	MaxSocksPoolLen int
-	InitialSocksPoolLen int
+	DisableConnsPool bool
+	MaxConnsPoolLen int
+	InitialConnsPoolLen int
 }
 
 type ServerOptions struct {
@@ -42,9 +42,9 @@ type ServerOptions struct {
 	RetryAmount int
 	MaxClientsAmount int
 	MaxIdleSeconds int
-	DisableSocksPool bool
-	MaxSocksPoolLen int
-	InitialSocksPoolLen int
+	DisableConnsPool bool
+	MaxConnsPoolLen int
+	InitialConnsPoolLen int
 }
 
 type Listener interface {

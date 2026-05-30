@@ -16,12 +16,12 @@ type server struct {
 }
 
 func (s *server) init() error {
-	if s.opts.DisableSocksPool {
+	if s.opts.DisableConnsPool {
 		return nil
 	}
-	s.connPool = make(chan models.Conn, s.opts.MaxSocksPoolLen)
+	s.connPool = make(chan models.Conn, s.opts.MaxConnsPoolLen)
 
-	for range s.opts.InitialSocksPoolLen {
+	for range s.opts.InitialConnsPoolLen {
 		c, err := s.newConn()
 		if err != nil {
 			return err
@@ -44,7 +44,7 @@ func (s *server) newConn() (models.Conn, error) {
 }
 
 func (s *server) getConn() (models.Conn, error) {
-	if s.opts.DisableSocksPool {
+	if s.opts.DisableConnsPool {
 		if int(s.activeConnectionsAmount.Load()) < s.opts.MaxClientsAmount {
 			c, err := s.newConn()
 			if err != nil {
@@ -74,10 +74,10 @@ func (s *server) getConn() (models.Conn, error) {
 
 func (s *server) storeConn(c models.Conn) {
 	s.activeConnectionsAmount.Add(-1)
-	if s.opts.DisableSocksPool {
+	if s.opts.DisableConnsPool {
 		return
 	}
-	if len(s.connPool) < s.opts.MaxSocksPoolLen {
+	if len(s.connPool) < s.opts.MaxConnsPoolLen {
 		n, err := c.CheckUnread()
 		if err != nil {
 			// логируем ошибку

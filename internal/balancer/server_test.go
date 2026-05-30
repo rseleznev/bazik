@@ -18,8 +18,8 @@ func Test_init(t *testing.T) {
 		{
 			name: "success pool",
 			opts: &models.ServerOptions{
-				MaxSocksPoolLen: 10,
-				InitialSocksPoolLen: 5,
+				MaxConnsPoolLen: 10,
+				InitialConnsPoolLen: 5,
 			},
 			n: mockNetworker{
 				newTCPConnFunc: func(a models.Address) (models.Conn, error) {
@@ -31,7 +31,7 @@ func Test_init(t *testing.T) {
 		{
 			name: "success no pool",
 			opts: &models.ServerOptions{
-				DisableSocksPool: true,
+				DisableConnsPool: true,
 			},
 			n: mockNetworker{
 				newTCPConnFunc: func(a models.Address) (models.Conn, error) {
@@ -43,7 +43,7 @@ func Test_init(t *testing.T) {
 		{
 			name: "success pool with 0 initial",
 			opts: &models.ServerOptions{
-				MaxSocksPoolLen: 10,
+				MaxConnsPoolLen: 10,
 			},
 			n: mockNetworker{
 				newTCPConnFunc: func(a models.Address) (models.Conn, error) {
@@ -55,8 +55,8 @@ func Test_init(t *testing.T) {
 		{
 			name: "fail ErrNoConnsAvailable",
 			opts: &models.ServerOptions{
-				MaxSocksPoolLen: 10,
-				InitialSocksPoolLen: 5,
+				MaxConnsPoolLen: 10,
+				InitialConnsPoolLen: 5,
 			},
 			n: mockNetworker{
 				newTCPConnFunc: func(a models.Address) (models.Conn, error) {
@@ -113,7 +113,7 @@ func Test_getConn(t *testing.T) {
 			expectedErr: nil,
 			opts: &models.ServerOptions{
 				MaxClientsAmount: 10,
-				DisableSocksPool: true,
+				DisableConnsPool: true,
 			},
 			n: mockNetworker{
 				newTCPConnFunc: func(_ models.Address) (models.Conn, error) {
@@ -125,7 +125,7 @@ func Test_getConn(t *testing.T) {
 			name: "fail ErrNoConnsAvailable",
 			expectedErr: models.ErrNoConnsAvailable,
 			opts: &models.ServerOptions{
-				DisableSocksPool: true,
+				DisableConnsPool: true,
 			},
 			n: mockNetworker{
 				newTCPConnFunc: func(_ models.Address) (models.Conn, error) {
@@ -164,7 +164,7 @@ func Test_storeConn(t *testing.T) {
 			name: "full path",
 			expectedPoolLen: 1,
 			opts: &models.ServerOptions{
-				MaxSocksPoolLen: 10,
+				MaxConnsPoolLen: 10,
 			},
 			conn: mockConn{
 				checkUnreadFunc: func() (int, error) {
@@ -185,7 +185,7 @@ func Test_storeConn(t *testing.T) {
 			name: "no store - unread/unsent",
 			expectedPoolLen: 0,
 			opts: &models.ServerOptions{
-				MaxSocksPoolLen: 10,
+				MaxConnsPoolLen: 10,
 			},
 			conn: mockConn{
 				checkUnreadFunc: func() (int, error) {
@@ -200,7 +200,7 @@ func Test_storeConn(t *testing.T) {
 			name: "no store - max pool len",
 			expectedPoolLen: 5,
 			opts: &models.ServerOptions{
-				MaxSocksPoolLen: 5,
+				MaxConnsPoolLen: 5,
 			},
 			conn: mockConn{
 				checkUnreadFunc: func() (int, error) {
@@ -225,7 +225,7 @@ func Test_storeConn(t *testing.T) {
 			name: "no store - no pool",
 			expectedPoolLen: 0,
 			opts: &models.ServerOptions{
-				DisableSocksPool: true,
+				DisableConnsPool: true,
 			},
 		},
 	}

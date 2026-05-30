@@ -72,8 +72,8 @@ func TestMain(m *testing.M) {
 
 				MaxClientsAmount: 1,
 				MaxIdleSeconds: 300,
-				MaxSocksPoolLen: 5,
-				InitialSocksPoolLen: 2,
+				MaxConnsPoolLen: 5,
+				InitialConnsPoolLen: 2,
 			},
 			connPool: make(chan models.Conn, 5),
 		},
@@ -85,15 +85,15 @@ func TestMain(m *testing.M) {
 
 				MaxClientsAmount: 1,
 				MaxIdleSeconds: 300,
-				MaxSocksPoolLen: 5,
-				InitialSocksPoolLen: 2,
+				MaxConnsPoolLen: 5,
+				InitialConnsPoolLen: 2,
 			},
 			connPool: make(chan models.Conn, 5),
 		},
 	}
 
 	for i, v := range servers {
-		for range v.opts.InitialSocksPoolLen {
+		for range v.opts.InitialConnsPoolLen {
 			servers[i].connPool <- mockConn{
 				getRawAddrFunc: func() string {
 					return v.opts.Addr.Raw
@@ -116,7 +116,7 @@ func TestMain(m *testing.M) {
 	
 	testBalancer = &TCPBalancer{
 		opts: &models.BalancerOptions{
-			BalancerAlg: "random",
+			BalancingAlg: "random",
 
 			MainTimeout: int(time.Millisecond)*500,
 			MaxClientsAmount: 1,
