@@ -81,9 +81,9 @@ type Config struct {
 		RetryAmount int `yaml:"retry_amount"`
 		MaxClientsAmount int `yaml:"max_clients_amount"`
 		MaxIdleSeconds int `yaml:"max_idle_seconds"`
-		DisableSocksPool bool `yaml:"disable_conns_pool"`
-		MaxSocksPoolLen int `yaml:"max_conns_pool_len"`
-		InitialSocksPoolLen int `yaml:"initial_conns_pool_len"`
+		DisableConnsPool bool `yaml:"disable_conns_pool"`
+		MaxConnsPoolLen int `yaml:"max_conns_pool_len"`
+		InitialConnsPoolLen int `yaml:"initial_conns_pool_len"`
 	}
 }
 
