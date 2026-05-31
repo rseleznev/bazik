@@ -37,6 +37,11 @@ func (s *server) newConn() (models.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
+	c.SetMainTimeout(time.Duration(s.opts.MainTimeout)*time.Millisecond)
+	err = c.Connect()
+	if err != nil {
+		return nil, err
+	}
 
 	// таймеры и настройки (TCP_NODELAY)
 

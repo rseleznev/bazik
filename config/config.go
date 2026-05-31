@@ -146,6 +146,7 @@ func Parse(path string) []BalancerConfig {
 				IP: ipBytes,
 				Port: port,
 			},
+			MainTimeout: c.MainTimeout,
 			MaxClientsAmount: v.MaxClientsAmount,
 			MaxIdleSeconds: v.MaxIdleSeconds,
 			DisableConnsPool: v.DisableConnsPool,

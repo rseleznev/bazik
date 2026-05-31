@@ -129,18 +129,23 @@ func TestAccept(t *testing.T) {
 	}
 }
 
-func Test_connect(t *testing.T) {
+func TestConnect(t *testing.T) {
 	requestCounter := 0
 	
 	testCases := []struct{
 		name string
 		expectedErr error
+		addr models.Address
 		sys mockSys
 		p mockPoller
 	}{
 		{
 			name: "success simple",
 			expectedErr: nil,
+			addr: models.Address{
+				IP: [4]byte{127, 0, 0, 1},
+				Port: 3000,
+			},
 			sys: mockSys{
 				connectFunc: func(_ int, _ syscall.Sockaddr) error {
 					return nil
@@ -150,6 +155,10 @@ func Test_connect(t *testing.T) {
 		{
 			name: "success with polling",
 			expectedErr: nil,
+			addr: models.Address{
+				IP: [4]byte{127, 0, 0, 1},
+				Port: 3000,
+			},
 			sys: mockSys{
 				connectFunc: func(_ int, _ syscall.Sockaddr) error {
 					if requestCounter == 0 {
@@ -172,6 +181,10 @@ func Test_connect(t *testing.T) {
 		{
 			name: "fail ErrTimeout",
 			expectedErr: models.ErrTimeout,
+			addr: models.Address{
+				IP: [4]byte{127, 0, 0, 1},
+				Port: 3000,
+			},
 			sys: mockSys{
 				connectFunc: func(_ int, _ syscall.Sockaddr) error {
 					if requestCounter == 0 {
@@ -200,7 +213,7 @@ func Test_connect(t *testing.T) {
 			testSocket.sys = tc.sys
 			testSocket.poller = tc.p
 
-			err := testSocket.connect()
+			err := testSocket.Connect()
 			if err != tc.expectedErr {
 				t.Errorf("Ожидаемая ошибка: %s, получено: %s", tc.expectedErr, err)
 			}

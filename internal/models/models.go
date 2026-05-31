@@ -38,6 +38,7 @@ type BalancerOptions struct {
 type ServerOptions struct {
 	Addr Address
 
+	MainTimeout int
 	MaxClientsAmount int
 	MaxIdleSeconds int
 	DisableConnsPool bool
@@ -50,7 +51,7 @@ type Listener interface {
 }
 
 type Conn interface {
-	// Connect() error
+	Connect() error
 	Close()
 	GetFd() int
 	CopyTo(Conn) error

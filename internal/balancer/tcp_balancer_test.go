@@ -23,6 +23,7 @@ func (m mockNetworker) NewTCPConn(a models.Address) (models.Conn, error) {
 }
 
 type mockConn struct {
+	connectFunc func() error
 	closeFunc func()
 	getFdFunc func() int
 	copyToFunc func(models.Conn) error
@@ -34,6 +35,9 @@ type mockConn struct {
 	getRawAddrFunc func() string
 	checkUnreadFunc func() (int, error)
 	checkUnsentFunc func() (int, error)
+}
+func (m mockConn) Connect() error {
+	return m.connectFunc()
 }
 func (m mockConn) Close() {
 	m.closeFunc()

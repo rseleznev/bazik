@@ -2,7 +2,6 @@ package network
 
 import (
 	"errors"
-	"fmt"
 	"runtime"
 	"strconv"
 	"sync"
@@ -82,7 +81,7 @@ func (s *socket) Accept() (models.Conn, error) {
 	}, nil
 }
 
-func (s *socket) connect() error {
+func (s *socket) Connect() error {
 	for {
 		err := s.sys.Connect(s.GetFd(), &syscall.SockaddrInet4{
 			Addr: s.addr.IP,
@@ -93,7 +92,6 @@ func (s *socket) connect() error {
 				err = s.pollFdWithTimeout(s.GetFd(), s.getTimeout(), "connect")
 				if err != nil {
 					if err == models.ErrPollTimeout {
-						fmt.Println("!!!!!!!!!")
 						return models.ErrTimeout
 					}
 					return err

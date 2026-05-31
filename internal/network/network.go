@@ -3,7 +3,6 @@ package network
 import (
 	"sync"
 	"syscall"
-	"time"
 
 	"github.com/rseleznev/bazik/internal/models"
 )
@@ -14,16 +13,12 @@ type poller interface {
 }
 
 type net struct {
-	mainTimeout time.Duration
-	
 	sys syscaller
 	poller poller
 }
 
-func NewNet(t int, p poller) *net {
-	timeout := time.Millisecond*time.Duration(t)
+func NewNet(p poller) *net {
 	return &net{
-		mainTimeout: timeout,
 		sys: &realSyscalls{
 			mu: sync.Mutex{},
 			pipeFDs: make([]int, 2),
@@ -62,21 +57,14 @@ func (n *net) NewTCPConn(addr models.Address) (models.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &socket{
+	return &socket{
 		fd: sFd,
 		mu: sync.RWMutex{},
 		addr: addr,
-		timeout: n.mainTimeout,
 
 		sys: n.sys,
 		poller: n.poller,
-	}
-	err = s.connect()
-	if err != nil {
-		return nil, err
-	}
-	
-	return s, nil
+	}, nil
 }
 
 func (n *net) newSocket(proto string) (int, error) {

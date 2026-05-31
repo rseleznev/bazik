@@ -23,7 +23,9 @@ func Test_init(t *testing.T) {
 			},
 			n: mockNetworker{
 				newTCPConnFunc: func(a models.Address) (models.Conn, error) {
-					return mockConn{}, nil
+					return mockConn{
+						connectFunc: func() error {return nil},
+					}, nil
 				},
 			},
 			expectedErr: nil,
