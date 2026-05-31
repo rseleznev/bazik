@@ -28,21 +28,15 @@ type Config struct {
 	// 	не принимаются (поток в обратную сторону продолжает работу), пока не будет получен ACK
 	ProxyMode string `yaml:"proxy_mode"`
 
-	// Время в миллисекундах, за которое должна выполняться каждая операция
+	// Время в миллисекундах, за которое должна выполняться каждая операция.
+	// Если по истечении таймаута операция не будет выполнена, это будет расценено как ошибка.
+	// Если разрешены ретраи (RetryAmount), будет попытка найти другой сервер. Иначе - соединение будет закрыто
+	// По умолчанию 100 мс
 	MainTimeout int `yaml:"main_timeout"`
 	// Время в миллисекундах, за которое должен прийти ACK на отправленный пакет (TCP_USER_TIMEOUT)
 	//
 	// 0 - системный дефолт (15-20 минут)
 	TCP_ACK_Timeout int
-
-	// Частота проверки жизни серверов
-	// Размеры буферов ядра
-
-	// ------------------------------------
-	// Общие настройки для всех серверов
-	// У серверов аналогичные настройки, которые имеют приоритет над общими
-	//
-
 	// Количество попыток переподключиться к серверу при ошибке.
 	//
 	// Если необходима целостность данных, следует установить 0,
@@ -53,6 +47,13 @@ type Config struct {
 	// сначала будут переданы те данные, которые остались с неудачной попытки
 	RetryAmount int `yaml:"retry_amount"`
 
+	// Частота проверки жизни серверов
+	// Размеры буферов ядра
+
+	// ------------------------------------
+	// Общие настройки для всех серверов
+	// У серверов аналогичные настройки, которые имеют приоритет над общими
+
 	// Максимальное кол-во клиентов.
 	//
 	// Когда лимит будет превышен, последующие клиенты будут получать ошибку ECONNREFUSED,
@@ -62,16 +63,23 @@ type Config struct {
 	// Максимальное время бездействия соединения
 	MaxIdleSeconds int `yaml:"max_idle_seconds"`
 
-	// Отключение пула серверных соединений
-	// По умолчанию false, то есть пул создается
-	DisableConnsPool bool `yaml:"disable_conns_pool"`
+	// Отключение пула серверных соединений у ВСЕХ серверов. Если у некоторых серверов должен быть пул,
+	// а у других нет - данное поле заполнять не нужно, вместо этого заполнить MaxConnsPoolLen и InitialConnsPoolLen
+	// на уровне серверов
+	//
+	// По умолчанию false, то есть пул создается у тех серверов, где MaxConnsPoolLen и InitialConnsPoolLen > 0
+	DisablePoolMainFlag bool `yaml:"disable_pool_main_flag"`
 	// Максимальные размеры пула соединений для каждого сервера.
-	// Должен быть больше 0. По умолчанию 10
+	// Должен быть больше 0.
+	// 
+	// По умолчанию 10
 	MaxConnsPoolLen int `yaml:"max_conns_pool_len"`
 	// Начальное количество соединений в пуле для каждого сервера.
 	// Количество может увеличиваться до MaxServerConnsPoolLen в зависимости
 	// от нагрузки, и потом снова снижается до InitialServerConnsPoolLen.
-	// Не должен быть больше MaxServerConnsPoolLen. По умолчанию 3
+	// Не должен быть больше MaxServerConnsPoolLen.
+	// 
+	// По умолчанию 3
 	InitialConnsPoolLen int `yaml:"initial_conns_pool_len"`
 
 	// ------------------------------------
@@ -80,7 +88,6 @@ type Config struct {
 	Servers []struct {
 		Address string `yaml:"address"`
 
-		RetryAmount int `yaml:"retry_amount"`
 		MaxClientsAmount int `yaml:"max_clients_amount"`
 		MaxIdleSeconds int `yaml:"max_idle_seconds"`
 		DisableConnsPool bool `yaml:"disable_conns_pool"`
@@ -103,6 +110,11 @@ func Parse(path string) []BalancerConfig {
 	}
 	c := &Config{}
 	yaml.Unmarshal(d, c)
+	err = validateConfig(c)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	portStr := strconv.Itoa(c.Port)
 	ipBytes, err := parseIp(c.IP)
 	if err != nil {
@@ -120,7 +132,7 @@ func Parse(path string) []BalancerConfig {
 		RetryAmount: c.RetryAmount,
 		MaxClientsAmount: c.MaxClientsAmount,
 		MaxIdleSeconds: c.MaxIdleSeconds,
-		DisableConnsPool: c.DisableConnsPool,
+
 		MaxConnsPoolLen: c.MaxConnsPoolLen,
 		InitialConnsPoolLen: c.InitialConnsPoolLen,
 	}
@@ -135,7 +147,6 @@ func Parse(path string) []BalancerConfig {
 				IP: ipBytes,
 				Port: port,
 			},
-			RetryAmount: v.RetryAmount,
 			MaxClientsAmount: v.MaxClientsAmount,
 			MaxIdleSeconds: v.MaxIdleSeconds,
 			DisableConnsPool: v.DisableConnsPool,
@@ -217,4 +228,93 @@ func parseIpAndPort(raw string) ([4]byte, int, error) {
 		i++
 	}
 	return result, p, nil
+}
+
+func validateConfig(c *Config) error {
+	if len(c.IP) > 15 {
+		return models.ErrTooLongIpAddress
+	}
+	if len(c.IP) < 7 {
+		return models.ErrTooShortIpAddress
+	}
+	if c.Port >= 66_000 {
+		return models.ErrPortNumOutOfRange
+	}
+	if c.Port <= 0 {
+		return models.ErrPortInvalid
+	}
+	switch c.Proto {
+	case "tcp":
+
+	default:
+		return models.ErrWrongProto
+
+	}
+
+	switch c.BalancingAlg {
+	case "random", "round robin":
+
+	default:
+		return models.ErrUnsupportedBalancingAlg
+	}
+
+	switch c.ProxyMode {
+	case "zero-copy", "guaranteed delivery":
+
+	default:
+		return models.ErrUnsupportedProxyMode
+	}
+
+	if c.MainTimeout <= 0 {
+		c.MainTimeout = 100
+	}
+	if c.MaxClientsAmount < 0 {
+		return fmt.Errorf("err max_client_amount: %w", models.ErrNumInvalid)
+	}
+	if c.MaxIdleSeconds < 0 {
+		return fmt.Errorf("err max_idle_seconds: %w", models.ErrNumInvalid)
+	}
+	if c.MaxConnsPoolLen < 0 {
+		return fmt.Errorf("err max_conns_pool_len: %w", models.ErrNumInvalid)
+	}
+	if c.InitialConnsPoolLen < 0 {
+		return fmt.Errorf("err initial_conns_pool_len: %w", models.ErrNumInvalid)
+	}
+
+	for i, v := range c.Servers {
+		if len(v.Address) > 21 {
+			return models.ErrTooLongIpAddress
+		}
+		if len(v.Address) < 9 {
+			return models.ErrTooShortIpAddress
+		}
+		if v.MaxClientsAmount <= 0 {
+			if c.MaxClientsAmount == 0 {
+				return models.ErrNoMaxClientsAmount
+			}
+			c.Servers[i].MaxClientsAmount = c.MaxClientsAmount
+		}
+		if v.MaxIdleSeconds <= 0 {
+			if c.MaxIdleSeconds == 0 {
+				return models.ErrNoMaxIdleSeconds
+			}
+			c.Servers[i].MaxIdleSeconds = c.MaxIdleSeconds
+		}
+		if !c.DisablePoolMainFlag && !v.DisableConnsPool {
+			if v.MaxConnsPoolLen <= 0 {
+				if c.MaxConnsPoolLen == 0 {
+					c.MaxConnsPoolLen = 10
+				}
+				c.Servers[i].MaxConnsPoolLen = c.MaxConnsPoolLen
+			}
+			if v.InitialConnsPoolLen <= 0 {
+				if c.InitialConnsPoolLen == 0 {
+					c.InitialConnsPoolLen = 3
+				}
+				c.Servers[i].InitialConnsPoolLen = c.InitialConnsPoolLen
+			}
+		}
+	}
+	
+	return nil
 }

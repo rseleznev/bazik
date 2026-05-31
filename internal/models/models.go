@@ -31,7 +31,6 @@ type BalancerOptions struct {
 	RetryAmount int
 	MaxClientsAmount int
 	MaxIdleSeconds int
-	DisableConnsPool bool
 	MaxConnsPoolLen int
 	InitialConnsPoolLen int
 }
@@ -39,7 +38,6 @@ type BalancerOptions struct {
 type ServerOptions struct {
 	Addr Address
 
-	RetryAmount int
 	MaxClientsAmount int
 	MaxIdleSeconds int
 	DisableConnsPool bool

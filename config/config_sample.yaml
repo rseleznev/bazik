@@ -24,15 +24,12 @@ servers:
 #     max_idle_seconds: 300
 #     servers:
 #       - address: "25.145.82.0:23769"
-#         retry_amount: 3
 #         max_response_seconds: 60
             
 #       - address: "25.145.83.0:23769"
-#         retry_amount: 1
 #         max_response_seconds: 60
             
 #       - address: "25.145.84.0:23769"
-#         retry_amount: 5
 #         max_response_seconds: 60
 #         max_idle_seconds: 10
         
@@ -45,11 +42,9 @@ servers:
 #     max_idle_seconds: 100
 #     servers:
 #       - address: "25.145.82.0:23769"
-#         retry_amount: 3
 #         max_response_seconds: 60
             
 #       - address: "25.145.83.0:23769"
-#         retry_amount: 1
 #         max_response_seconds: 60
 #     routes:
 #       - route: /orders

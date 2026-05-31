@@ -41,7 +41,6 @@ func main() {
 					IP: [4]byte{127, 0, 0, 1},
 					Port: 6379,
 				},
-				RetryAmount: 0,
 				MaxClientsAmount: 3,
 				MaxIdleSeconds: 300,
 				MaxConnsPoolLen: 10,
