@@ -2,6 +2,7 @@ package network
 
 import (
 	"errors"
+	"fmt"
 	"runtime"
 	"strconv"
 	"sync"
@@ -92,6 +93,7 @@ func (s *socket) connect() error {
 				err = s.pollFdWithTimeout(s.GetFd(), s.getTimeout(), "connect")
 				if err != nil {
 					if err == models.ErrPollTimeout {
+						fmt.Println("!!!!!!!!!")
 						return models.ErrTimeout
 					}
 					return err

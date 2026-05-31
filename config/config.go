@@ -132,7 +132,6 @@ func Parse(path string) []BalancerConfig {
 		RetryAmount: c.RetryAmount,
 		MaxClientsAmount: c.MaxClientsAmount,
 		MaxIdleSeconds: c.MaxIdleSeconds,
-
 		MaxConnsPoolLen: c.MaxConnsPoolLen,
 		InitialConnsPoolLen: c.InitialConnsPoolLen,
 	}
@@ -153,14 +152,12 @@ func Parse(path string) []BalancerConfig {
 			MaxConnsPoolLen: v.MaxConnsPoolLen,
 			InitialConnsPoolLen: v.InitialConnsPoolLen,
 		}
-		fmt.Printf("%+v \n", sO)
 		srvOptions = append(srvOptions, sO)
 	}
 	balancerConf = append(balancerConf, BalancerConfig{
 		Balancer: bO,
 		Servers: srvOptions,
 	})
-	fmt.Printf("%+v \n", bO)
 	
 	return balancerConf
 }
