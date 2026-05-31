@@ -150,7 +150,6 @@ func Parse(path string) []BalancerConfig {
 		Servers: srvOptions,
 	})
 	fmt.Printf("%+v \n", bO)
-	fmt.Printf("%+v \n", &srvOptions)
 	
 	return balancerConf
 }
@@ -172,12 +171,14 @@ func parseIp(raw string) ([4]byte, error) {
 			r++
 			continue
 		}
-		if raw[i] == ':' {
-			break
-		}
 		buf = append(buf, raw[i])
 		i++
 	}
+	n, err := strconv.Atoi(string(buf))
+	if err != nil {
+		return [4]byte{}, err
+	}
+	result[r] = byte(n)
 	return result, nil
 }
 
@@ -200,7 +201,12 @@ func parseIpAndPort(raw string) ([4]byte, int, error) {
 		}
 		if raw[i] == ':' {
 			i++
-			var err error
+			n, err := strconv.Atoi(string(buf))
+			if err != nil {
+				return [4]byte{}, 0, err
+			}
+			result[r] = byte(n)
+
 			p, err = strconv.Atoi(string(raw[i:]))
 			if err != nil {
 				return [4]byte{}, 0, err
