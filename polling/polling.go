@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/rseleznev/bazik/internal/models"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -80,10 +81,10 @@ func (e *Epoll) Add(unit models.PollingUnit) error {
 			e.addSocketEventInPolling(unit)
 			return nil
 		}
-		err := e.addInOutEvent(unit.SocketFd)
-		if err != nil {
-			return err
-		}
+		// err := e.addInOutEvent(unit.SocketFd)
+		// if err != nil {
+		// 	return err
+		// }
 		e.addSocketEventInPolling(unit)
 		return nil
 	}
@@ -104,19 +105,19 @@ func (e *Epoll) Add(unit models.PollingUnit) error {
 			return err
 		}
 
-	// хотим узнать факт получения входящего сообщения
-	case "income":
-		err := e.addIncomeEvent(unit.SocketFd)
-		if err != nil {
-			return err
-		}
+	// // хотим узнать факт получения входящего сообщения
+	// case "income":
+	// 	err := e.addIncomeEvent(unit.SocketFd)
+	// 	if err != nil {
+	// 		return err
+	// 	}
 
-	// хотим узнать результат отправки своего сообщения
-	case "outcome":
-		err := e.addOutcomeEvent(unit.SocketFd)
-		if err != nil {
-			return err
-		}
+	// // хотим узнать результат отправки своего сообщения
+	// case "outcome":
+	// 	err := e.addOutcomeEvent(unit.SocketFd)
+	// 	if err != nil {
+	// 		return err
+	// 	}
 
 	}
 
@@ -145,6 +146,8 @@ func (e *Epoll) wait() {
 	e.mu.Unlock()
 	for {
 		n, err := e.sys.Wait(e.fd, e.eventsBuf, 0)
+		fmt.Println("n: ", n)
+		fmt.Println("eventsBuf: ", e.eventsBuf)
 		if err != nil {
 			e.setError(err)
 			go e.pushError()
@@ -154,6 +157,7 @@ func (e *Epoll) wait() {
 		if n > 0 { // Пришли какие-то события
 			e.mu.Lock()
 			e.addReadyEvents(e.eventsBuf[:n])
+			fmt.Println("readyEvents: ", e.readyEvents)
 			go e.processEvents(n)
 
 			if n == e.pollingSocketsLen() { // готовы все ожидаемые сокеты
@@ -249,10 +253,10 @@ func (e *Epoll) processEvents(readySocketsLen int) {
 				if v.EventType & epollIncomeEvent != 0 {
 					e.sendResultToIncomeSocketUnits(s, v.Err)
 					e.deleteSocketEventsFromPolling(s, "income")
-					err := e.addOutcomeEvent(s)
-					if err != nil {
-						return
-					}
+					// err := e.addOutcomeEvent(s)
+					// if err != nil {
+					// 	return
+					// }
 					if !e.isPolling() {
 						go e.wait()
 					}
@@ -260,10 +264,10 @@ func (e *Epoll) processEvents(readySocketsLen int) {
 				} else {
 					e.sendResultToOutcomeSocketUnits(s, v.Err)
 					e.deleteSocketEventsFromPolling(s, "outcome")
-					err := e.addIncomeEvent(s)
-					if err != nil {
-						return
-					}
+					// err := e.addIncomeEvent(s)
+					// if err != nil {
+					// 	return
+					// }
 					if !e.isPolling() {
 						go e.wait()
 					}
@@ -368,33 +372,36 @@ func (e *Epoll) pollingSocketsLen() int {
 	return len(e.sockets)
 }
 
-func (e *Epoll) newOutcomeEvent(socketFd int) syscall.EpollEvent {
-	return syscall.EpollEvent{
-		Events: syscall.EPOLLOUT,
-		Fd: int32(socketFd),
-		Pad: 0, // узнать, что это
-	}
-}
+// func (e *Epoll) newOutcomeEvent(socketFd int) syscall.EpollEvent {
+// 	return syscall.EpollEvent{
+// 		Events: syscall.EPOLLOUT,
+// 		Fd: int32(socketFd),
+// 		Pad: 0, // узнать, что это
+// 	}
+// }
 
-func (e *Epoll) newIncomeEvent(socketFd int) syscall.EpollEvent {
-	return syscall.EpollEvent{
-		Events: syscall.EPOLLIN,
-		Fd: int32(socketFd),
-		Pad: 0, // узнать, что это
-	}
-}
+// func (e *Epoll) newIncomeEvent(socketFd int) syscall.EpollEvent {
+// 	return syscall.EpollEvent{
+// 		Events: syscall.EPOLLIN,
+// 		Fd: int32(socketFd),
+// 		Pad: 0, // узнать, что это
+// 	}
+// }
 
-func (e *Epoll) newInOutEvent(socketFd int) syscall.EpollEvent {
-	return syscall.EpollEvent{
-		Events: syscall.EPOLLIN | syscall.EPOLLOUT,
-		Fd: int32(socketFd),
-	}
-}
+// func (e *Epoll) newInOutEvent(socketFd int) syscall.EpollEvent {
+// 	return syscall.EpollEvent{
+// 		Events: syscall.EPOLLIN | syscall.EPOLLOUT,
+// 		Fd: int32(socketFd),
+// 	}
+// }
 
 func (e *Epoll) addConnectEvent(socketFd int) error {
-	event := e.newOutcomeEvent(socketFd)
+	// event := e.newOutcomeEvent(socketFd)
 	
-	err := e.sys.Ctl(e.fd, syscall.EPOLL_CTL_ADD, socketFd, &event)
+	err := e.sys.Ctl(e.fd, syscall.EPOLL_CTL_ADD, socketFd, &syscall.EpollEvent{
+		Events: syscall.EPOLLIN | syscall.EPOLLOUT | unix.EPOLLET,
+		Fd: int32(socketFd),
+	})
 	if err != nil {
 		return e.handleEpollError(err)
 	}
@@ -402,38 +409,38 @@ func (e *Epoll) addConnectEvent(socketFd int) error {
 	return nil
 }
 
-func (e *Epoll) addIncomeEvent(socketFd int) error {
-	event := e.newIncomeEvent(socketFd)
+// func (e *Epoll) addIncomeEvent(socketFd int) error {
+// 	event := e.newIncomeEvent(socketFd)
 
-	err := e.sys.Ctl(e.fd, syscall.EPOLL_CTL_MOD, socketFd, &event)
-	if err != nil {
-		return e.handleEpollError(err)
-	}
+// 	err := e.sys.Ctl(e.fd, syscall.EPOLL_CTL_MOD, socketFd, &event)
+// 	if err != nil {
+// 		return e.handleEpollError(err)
+// 	}
 	
-	return nil
-}
+// 	return nil
+// }
 
-func (e *Epoll) addOutcomeEvent(socketFd int) error {
-	event := e.newOutcomeEvent(socketFd)
+// func (e *Epoll) addOutcomeEvent(socketFd int) error {
+// 	event := e.newOutcomeEvent(socketFd)
 
-	err := e.sys.Ctl(e.fd, syscall.EPOLL_CTL_MOD, socketFd, &event)
-	if err != nil {
-		return e.handleEpollError(err)
-	}
+// 	err := e.sys.Ctl(e.fd, syscall.EPOLL_CTL_MOD, socketFd, &event)
+// 	if err != nil {
+// 		return e.handleEpollError(err)
+// 	}
 	
-	return nil
-}
+// 	return nil
+// }
 
-func (e *Epoll) addInOutEvent(socketFd int) error {
-	event := e.newInOutEvent(socketFd)
+// func (e *Epoll) addInOutEvent(socketFd int) error {
+// 	event := e.newInOutEvent(socketFd)
 
-	err := e.sys.Ctl(e.fd, syscall.EPOLL_CTL_MOD, socketFd, &event)
-	if err != nil {
-		return e.handleEpollError(err)
-	}
+// 	err := e.sys.Ctl(e.fd, syscall.EPOLL_CTL_MOD, socketFd, &event)
+// 	if err != nil {
+// 		return e.handleEpollError(err)
+// 	}
 	
-	return nil
-}
+// 	return nil
+// }
 
 func (e *Epoll) checkEventType(eventType string) bool {
 	var ok bool
