@@ -64,13 +64,13 @@ func (m mockSys) GetUnsent(n int) (int, error) {
 
 type mockPoller struct{
 	addFunc func(models.PollingUnit) error
-	deleteSocketFromPollingFunc func(int)
+	stopUnitPollingFunc func(u models.PollingUnit)
 }
 func (p mockPoller) Add(u models.PollingUnit) error {
 	return p.addFunc(u)
 }
-func (p mockPoller) DeleteSocketFromPolling(n int) {
-	p.deleteSocketFromPollingFunc(n)
+func (p mockPoller) StopUnitPolling(u models.PollingUnit) {
+	p.stopUnitPollingFunc(u)
 }
 
 func TestAccept(t *testing.T) {
@@ -203,7 +203,7 @@ func TestConnect(t *testing.T) {
 					
 					return nil
 				},
-				deleteSocketFromPollingFunc: func(_ int) {},
+				stopUnitPollingFunc: func(_ models.PollingUnit) {},
 			},
 		},
 	}
@@ -340,7 +340,7 @@ func TestCopyTo(t *testing.T) {
 					
 					return nil
 				},
-				deleteSocketFromPollingFunc: func(_ int) {},
+				stopUnitPollingFunc: func(_ models.PollingUnit) {},
 			},
 		},
 		{
@@ -374,7 +374,7 @@ func TestCopyTo(t *testing.T) {
 					
 					return nil
 				},
-				deleteSocketFromPollingFunc: func(_ int) {},
+				stopUnitPollingFunc: func(_ models.PollingUnit) {},
 			},
 		},
 	}

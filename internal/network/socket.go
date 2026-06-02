@@ -127,7 +127,7 @@ func (s *socket) poll(eventType string) error {
 
 		default:
 			if time.Now().After(s.getIdleDeadline()) {
-				s.poller.DeleteSocketFromPolling(s.GetFd())
+				s.poller.StopUnitPolling(pUnit)
 
 				return models.ErrPollTimeout
 			}
@@ -160,7 +160,7 @@ func (s *socket) pollFdWithTimeout(fd int, t time.Duration, eventType string) er
 
 		default:
 			if time.Now().After(deadline) {
-				s.poller.DeleteSocketFromPolling(fd)
+				s.poller.StopUnitPolling(pUnit)
 
 				return models.ErrPollTimeout
 			}

@@ -33,9 +33,9 @@ type Epoll struct {
 	readyEvents []syscall.EpollEvent
 
 	// сокеты, которые добавлены в interest_list
-	interestedSockets map[int]struct{}
+	socketsInterestList map[int]struct{}
 	// сокеты, которые поллим, события и каналы для возврата результата
-	sockets map[int]map[string][]models.PollingUnit
+	socketsPolling map[int]map[string][]models.PollingUnit
 	
 	// пришло неожиданное событие с ошибкой, когда никто не ждал
 	socketsUnexpErr map[int]error
@@ -55,8 +55,8 @@ func NewEpoll() (*Epoll, error) {
 		mu: sync.Mutex{},
 		eventsBuf: make([]syscall.EpollEvent, 5),
 		readyEvents: make([]syscall.EpollEvent, 0, 5),
-		interestedSockets: make(map[int]struct{}),
-		sockets: make(map[int]map[string][]models.PollingUnit),
+		socketsInterestList: make(map[int]struct{}),
+		socketsPolling: make(map[int]map[string][]models.PollingUnit),
 		socketsUnexpErr: make(map[int]error),
 		sys: epollRealSyscalls{},
 	}, nil
@@ -65,10 +65,8 @@ func NewEpoll() (*Epoll, error) {
 // Add добавляет событие (юнит), которое нужно поллить
 func (e *Epoll) Add(unit models.PollingUnit) error {
 	e.mu.Lock()
-
 	defer e.mu.Unlock()
 
-	// проверка, нет ли неожиданной ошибки по сокету
 	if err := e.getSocketUnexpErr(unit.SocketFd); err != nil {
 		e.deleteSocketUnexpErr(unit.SocketFd)
 		return err
@@ -76,7 +74,7 @@ func (e *Epoll) Add(unit models.PollingUnit) error {
 	if !e.checkEventType(unit.EventType) {
 		return models.ErrPollUnknownEventType
 	}
-	if !e.isSocketPolling(unit.SocketFd) {
+	if !e.isSocketInInterestList(unit.SocketFd) {
 		err := e.addCommonEvent(unit.SocketFd)
 		if err != nil {
 			return err
@@ -85,57 +83,6 @@ func (e *Epoll) Add(unit models.PollingUnit) error {
 	}
 	e.addSocketUnit(unit)
 
-	// // смотрим, сколько событий мы уже ждем по сокету
-	// if e.socketPollingEventsLen(unit.SocketFd) == 1 {
-	// 	if e.isSocketEventInPolling(unit) {
-	// 		e.addSocketEventInPolling(unit)
-	// 		return nil
-	// 	}
-	// 	// err := e.addInOutEvent(unit.SocketFd)
-	// 	// if err != nil {
-	// 	// 	return err
-	// 	// }
-	// 	e.addSocketEventInPolling(unit)
-	// 	return nil
-	// }
-	// if e.socketPollingEventsLen(unit.SocketFd) > 1 {
-	// 	e.addSocketEventInPolling(unit)
-	// 	return nil
-	// }
-
-	// e.sockets[unit.SocketFd] = make(map[string][]models.PollingUnit, 2)
-
-	// // добавляем нужное событие в epoll_ctl
-	// switch unit.EventType {
-
-	// // хотим узнать результат подключения к серверу
-	// case "connect":
-	// 	err := e.addCommonEvent(unit.SocketFd)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-
-	// // // хотим узнать факт получения входящего сообщения
-	// // case "income":
-	// // 	err := e.addIncomeEvent(unit.SocketFd)
-	// // 	if err != nil {
-	// // 		return err
-	// // 	}
-
-	// // // хотим узнать результат отправки своего сообщения
-	// // case "outcome":
-	// // 	err := e.addOutcomeEvent(unit.SocketFd)
-	// // 	if err != nil {
-	// // 		return err
-	// // 	}
-
-	// }
-
-	// // e.addSocketInPolling(unit)
-	// e.addSocketEventInPolling(unit)
-
-	// проверка, происходит ли поллинг. Если да - конец
-	// Если нет - запускаем его
 	if !e.isPolling() {
 		go e.wait()
 	}
@@ -162,26 +109,18 @@ func (e *Epoll) wait() {
 
 			break
 		}
+		e.mu.Lock()
 		if n > 0 { // Пришли какие-то события
-			e.mu.Lock()
 			e.addReadyEvents(e.eventsBuf[:n])
 			go e.processEvents(n)
-
-			if n == e.pollingSocketsLen() { // готовы все ожидаемые сокеты
-				e.stopPolling()
-				e.mu.Unlock()
-				
-				break
-			}
-			e.mu.Unlock()
 		}
-		// e.mu.Lock()
-		// if e.pollingSocketsLen() == 0 {
-		// 	e.stopPolling()
-		// 	e.mu.Unlock()
-		// 	break
-		// }
-		// e.mu.Unlock()
+		if n == e.pollingSocketsLen() || e.pollingSocketsLen() == 0 {
+			e.stopPolling()
+			e.mu.Unlock()
+
+			break
+		}
+		e.mu.Unlock()
 		runtime.Gosched()
 	}
 }
@@ -189,7 +128,6 @@ func (e *Epoll) wait() {
 // processEvents обрабатывает полученные события, находит готовые сокеты и возвращает результаты ждущим потокам
 func (e *Epoll) processEvents(readySocketsLen int) {
 	e.mu.Lock()
-
 	defer e.mu.Unlock()
 
 	readySockets := make(map[int]models.PollingResult, readySocketsLen)
@@ -253,17 +191,17 @@ func (e *Epoll) processEvents(readySocketsLen int) {
 				e.setSocketUnexpErr(s, v.Err)
 				continue
 			}
-			e.sendResultToAllSocketUnits(s, v.Err)
+			e.sendResultToUnits(s, v.Err)
 			e.deleteSocketFromPolling(s)
 			continue
 		}
 		if v.EventType | epollIncomeEvent != 0 {
-			e.sendResultToIncomeSocketUnits(s, v.Err)
-			e.deleteSocketEvents(s, "income")
+			e.sendResultToEventUnits(s, "income", v.Err)
+			e.deleteSocketEvent(s, "income")
 		}
 		if v.EventType | epollOutcomeEvent != 0 {
-			e.sendResultToOutcomeSocketUnits(s, v.Err)
-			e.deleteSocketEvents(s, "outcome")
+			e.sendResultToEventUnits(s, "outcome", v.Err)
+			e.deleteSocketEvent(s, "outcome")
 		}
 		if e.socketEventsLen(s) > 0 {
 			if !e.isPolling() {
@@ -272,69 +210,19 @@ func (e *Epoll) processEvents(readySocketsLen int) {
 		} else {
 			e.deleteSocketFromPolling(s)
 		}
-
-		// // не может быть больше двух ожидаемых событий
-		// switch e.socketEventsLen(s) {
-		// case 1:
-		// 	e.sendResultToAllSocketUnits(s, v.Err)
-
-		// case 2:
-		// 	if (v.EventType & epollIncomeEvent != 0) && (v.EventType & epollOutcomeEvent != 0) {
-		// 		e.sendResultToAllSocketUnits(s, v.Err)
-		// 	} else {
-		// 		if v.EventType & epollIncomeEvent != 0 {
-		// 			e.sendResultToIncomeSocketUnits(s, v.Err)
-		// 			e.deleteSocketEvents(s, "income")
-		// 			// err := e.addOutcomeEvent(s)
-		// 			// if err != nil {
-		// 			// 	return
-		// 			// }
-		// 			if !e.isPolling() {
-		// 				go e.wait()
-		// 			}
-		// 			continue
-		// 		} else {
-		// 			e.sendResultToOutcomeSocketUnits(s, v.Err)
-		// 			e.deleteSocketEvents(s, "outcome")
-		// 			// err := e.addIncomeEvent(s)
-		// 			// if err != nil {
-		// 			// 	return
-		// 			// }
-		// 			if !e.isPolling() {
-		// 				go e.wait()
-		// 			}
-		// 			continue
-		// 		}
-		// 	}
-
-		// case 0:
-		// 	e.setSocketUnexpErr(s, v.Err)
-
-		// }
-		// e.deleteSocketFromPolling(s)
 	}
 	e.clearReadyEvents() // удаляем завершенные события
 }
 
-// DeleteSocketFromPolling удаляет сокет из ожидания целиком, т.е. когда сокет более не будет поллиться
-func (e *Epoll) DeleteSocketFromPolling(socketFd int) {
+func (e *Epoll) StopUnitPolling(unit models.PollingUnit) {
 	e.mu.Lock()
-
 	defer e.mu.Unlock()
 	
-	e.deleteSocketFromPolling(socketFd)
+	e.deleteSocketEvent(unit.SocketFd, unit.EventType) // работает только при одном ждущем юните
+	if e.socketEventsLen(unit.SocketFd) == 0 {
+		e.deleteSocketFromPolling(unit.SocketFd)
+	}
 }
-
-// func (e *Epoll) DeleteSocketEventFromPolling(socketFd int, eventType string) {
-// 	e.mu.Lock()
-
-// 	defer e.mu.Unlock()
-	
-// 	e.deleteSocketEventsFromPolling(socketFd, eventType)
-// 	if e.socketPollingEventsLen(socketFd) == 0 {
-// 		e.deleteSocketFromPolling(socketFd)
-// 	}
-// }
 
 func (e *Epoll) setError(err error) {
 	e.err = err
@@ -359,8 +247,8 @@ func (e *Epoll) pushError() {
 
 	err := e.GetError()
 
-	for s := range e.sockets {
-		e.sendResultToAllSocketUnits(s, err)
+	for s := range e.socketsPolling {
+		e.sendResultToUnits(s, err)
 	}
 }
 
@@ -369,37 +257,23 @@ func (e *Epoll) pushError() {
 // Методы, которые должны вызываться только под захваченным мьютексом
 
 func (e *Epoll) socketEventsLen(socketFd int) int {
-	return len(e.sockets[socketFd])
+	return len(e.socketsPolling[socketFd])
 }
-
-func (e *Epoll) isSocketPolling(socketFd int) bool {
-	_, ok := e.sockets[socketFd]
-	return ok
-}
-
-// func (e *Epoll) isSocketEventInPolling(unit models.PollingUnit) bool {
-// 	_, ok := e.sockets[unit.SocketFd][unit.EventType]
-// 	return ok
-// }
 
 func (e *Epoll) addSocketUnit(unit models.PollingUnit) {
-	if e.sockets[unit.SocketFd] == nil {
-		e.sockets[unit.SocketFd] = make(map[string][]models.PollingUnit, 2)
+	if e.socketsPolling[unit.SocketFd] == nil {
+		e.socketsPolling[unit.SocketFd] = make(map[string][]models.PollingUnit, 2)
+		e.socketsPolling[unit.SocketFd][unit.EventType] = make([]models.PollingUnit, 0, 2)
 	}
-	e.sockets[unit.SocketFd][unit.EventType] = append(e.sockets[unit.SocketFd][unit.EventType], unit)
+	e.socketsPolling[unit.SocketFd][unit.EventType] = append(e.socketsPolling[unit.SocketFd][unit.EventType], unit)
 }
 
-func (e *Epoll) deleteSocketEvents(socketFd int, eventType string) {
-	delete(e.sockets[socketFd], eventType)
+func (e *Epoll) deleteSocketEvent(socketFd int, eventType string) {
+	delete(e.socketsPolling[socketFd], eventType)
 }
 
 func (e *Epoll) deleteSocketFromPolling(socketFd int) {
-	delete(e.sockets, socketFd)
-}
-
-func (e *Epoll) closeSocket(socketFd int) {
-	e.deleteCommonEvent(socketFd)
-	e.deletedFromInterestList(socketFd)
+	delete(e.socketsPolling, socketFd)
 }
 
 func (e *Epoll) isPolling() bool {
@@ -415,7 +289,7 @@ func (e *Epoll) stopPolling() {
 }
 
 func (e *Epoll) pollingSocketsLen() int {
-	return len(e.sockets)
+	return len(e.socketsPolling)
 }
 
 func (e *Epoll) addCommonEvent(socketFd int) error {
@@ -424,28 +298,33 @@ func (e *Epoll) addCommonEvent(socketFd int) error {
 		Fd: int32(socketFd),
 	})
 	if err != nil {
-		return e.handleEpollError(err)
+		return err
 	}
 	
 	return nil
 }
 
-func (e *Epoll) deleteCommonEvent(socketFd int) error {
-	err := e.sys.Ctl(e.fd, syscall.EPOLL_CTL_DEL, socketFd, &syscall.EpollEvent{})
-	if err != nil {
-		return e.handleEpollError(err)
-	}
+// func (e *Epoll) deleteCommonEvent(socketFd int) error {
+// 	err := e.sys.Ctl(e.fd, syscall.EPOLL_CTL_DEL, socketFd, &syscall.EpollEvent{})
+// 	if err != nil {
+// 		return err
+// 	}
 	
-	return nil
+// 	return nil
+// }
+
+func (e *Epoll) isSocketInInterestList(socketFd int) bool {
+	_, ok := e.socketsInterestList[socketFd]
+	return ok
 }
 
 func (e *Epoll) addedInInterestList(socketFd int) {
-	e.interestedSockets[socketFd] = struct{}{}
+	e.socketsInterestList[socketFd] = struct{}{}
 }
 
-func (e *Epoll) deletedFromInterestList(socketFd int) {
-	delete(e.interestedSockets, socketFd)
-}
+// func (e *Epoll) deletedFromInterestList(socketFd int) {
+// 	delete(e.socketsInterestList, socketFd)
+// }
 
 func (e *Epoll) checkEventType(eventType string) bool {
 	var ok bool
@@ -462,8 +341,8 @@ func (e *Epoll) checkEventType(eventType string) bool {
 	return ok
 }
 
-func (e *Epoll) sendResultToAllSocketUnits(socketFd int, err error)  {
-	for _, units := range e.sockets[socketFd] {
+func (e *Epoll) sendResultToUnits(socketFd int, err error)  {
+	for _, units := range e.socketsPolling[socketFd] {
 		for _, unit := range units {
 			if unit.ResultChan == nil {
 				continue
@@ -473,14 +352,8 @@ func (e *Epoll) sendResultToAllSocketUnits(socketFd int, err error)  {
 	}
 }
 
-func (e *Epoll) sendResultToIncomeSocketUnits(socketFd int, err error)  {
-	for _, unit := range e.sockets[socketFd]["income"] {
-		unit.ResultChan <- err
-	}
-}
-
-func (e *Epoll) sendResultToOutcomeSocketUnits(socketFd int, err error)  {
-	for _, unit := range e.sockets[socketFd]["outcome"] {
+func (e *Epoll) sendResultToEventUnits(socketFd int, eventType string, err error) {
+	for _, unit := range e.socketsPolling[socketFd][eventType] {
 		unit.ResultChan <- err
 	}
 }
@@ -503,8 +376,4 @@ func (e *Epoll) getSocketUnexpErr(socketFd int) error {
 
 func (e *Epoll) deleteSocketUnexpErr(socketFd int) {
 	delete(e.socketsUnexpErr, socketFd)
-}
-
-func (e *Epoll) handleEpollError(err error) error {
-	return fmt.Errorf("epoll_ctl err: %w", err)
 }

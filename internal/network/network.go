@@ -9,7 +9,7 @@ import (
 
 type poller interface {
 	Add(models.PollingUnit) error
-	DeleteSocketFromPolling(int)
+	StopUnitPolling(models.PollingUnit)
 }
 
 type net struct {
