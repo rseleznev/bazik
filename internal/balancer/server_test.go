@@ -2,6 +2,7 @@ package balancer
 
 import (
 	"testing"
+	"time"
 
 	"github.com/rseleznev/bazik/internal/models"
 )
@@ -106,7 +107,10 @@ func Test_getConn(t *testing.T) {
 			},
 			n: mockNetworker{
 				newTCPConnFunc: func(_ models.Address) (models.Conn, error) {
-					return mockConn{}, nil
+					return mockConn{
+						setMainTimeoutFunc: func(_ time.Duration) {},
+						connectFunc: func() error {return nil},
+					}, nil
 				},
 			},
 		},
@@ -119,7 +123,10 @@ func Test_getConn(t *testing.T) {
 			},
 			n: mockNetworker{
 				newTCPConnFunc: func(_ models.Address) (models.Conn, error) {
-					return mockConn{}, nil
+					return mockConn{
+						setMainTimeoutFunc: func(_ time.Duration) {},
+						connectFunc: func() error {return nil},
+					}, nil
 				},
 			},
 		},
@@ -129,11 +136,7 @@ func Test_getConn(t *testing.T) {
 			opts: &models.ServerOptions{
 				DisableConnsPool: true,
 			},
-			n: mockNetworker{
-				newTCPConnFunc: func(_ models.Address) (models.Conn, error) {
-					return mockConn{}, nil
-				},
-			},
+			n: mockNetworker{},
 		},
 	}
 
