@@ -219,85 +219,84 @@ func TestAdd(t *testing.T) {
 	}
 }
 
-// func Test_wait(t *testing.T) {
-// 	testPoller := &Epoll{
-// 		fd:              2,
-// 		mu:              sync.Mutex{},
-// 		eventsBuf:       make([]syscall.EpollEvent, 5),
-// 		readyEvents:     make([]syscall.EpollEvent, 0, 5),
-// 		sockets:         make(map[int]map[string][]models.PollingUnit),
-// 		socketsUnexpErr: make(map[int]error),
-// 	}
+func Test_wait(t *testing.T) {
+	testPoller := &Epoll{
+		fd: 2,
+		mu: sync.Mutex{},
+		eventsBuf: make([]syscall.EpollEvent, 5),
+		readyEvents: make([]syscall.EpollEvent, 0, 5),
+		socketsPolling: make(map[int]map[string][]models.PollingUnit),
+		socketsUnexpErr: make(map[int]error),
+	}
 	
-// 	testData := []struct{
-// 		name string
-// 		expectedChanErr error
-// 		expectedPollerErr error
-// 		eventForPolling models.PollingUnit
-// 		mockSys mockSyscalls
-// 	}{
-// 		{
-// 			name: "success",
-// 			expectedChanErr: nil,
-// 			eventForPolling: models.PollingUnit{
-// 				SocketFd: 1,
-// 				EventType: "outcome",
-// 				ResultChan: make(chan error),
-// 			},
-// 			mockSys: mockSyscalls{
-// 				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
-// 					testPoller.eventsBuf[0] = syscall.EpollEvent{
-// 						Events: syscall.EPOLLOUT,
-// 						Fd: 1,
-// 					}
-// 					return 1, nil
-// 				},
-// 				getSocketOptFunc: func(_, _, _ int) (int, error) {
-// 					return 0, nil
-// 				},
-// 				ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
-// 					return nil
-// 				},
-// 			},
-// 		},
-// 		{
-// 			name: "fail",
-// 			expectedChanErr: models.ErrWrongProto,
-// 			eventForPolling: models.PollingUnit{
-// 				SocketFd: 1,
-// 				EventType: "outcome",
-// 				ResultChan: make(chan error),
-// 			},
-// 			mockSys: mockSyscalls{
-// 				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
-// 					return 1, models.ErrWrongProto
-// 				},
-// 				getSocketOptFunc: func(_, _, _ int) (int, error) {
-// 					return 0, nil
-// 				},
-// 				ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
-// 					return nil
-// 				},
-// 			},
-// 		},
-// 	}
+	testData := []struct{
+		name string
+		expectedChanErr error
+		expectedPollerErr error
+		eventForPolling models.PollingUnit
+		mockSys mockSyscalls
+	}{
+		{
+			name: "success",
+			expectedChanErr: nil,
+			eventForPolling: models.PollingUnit{
+				SocketFd: 1,
+				EventType: "outcome",
+				ResultChan: make(chan error),
+			},
+			mockSys: mockSyscalls{
+				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
+					testPoller.eventsBuf[0] = syscall.EpollEvent{
+						Events: syscall.EPOLLOUT,
+						Fd: 1,
+					}
+					return 1, nil
+				},
+				getSocketOptFunc: func(_, _, _ int) (int, error) {
+					return 0, nil
+				},
+				ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
+					return nil
+				},
+			},
+		},
+		{
+			name: "fail",
+			expectedChanErr: models.ErrWrongProto,
+			eventForPolling: models.PollingUnit{
+				SocketFd: 1,
+				EventType: "outcome",
+				ResultChan: make(chan error),
+			},
+			mockSys: mockSyscalls{
+				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
+					return 0, models.ErrWrongProto
+				},
+				getSocketOptFunc: func(_, _, _ int) (int, error) {
+					return 0, nil
+				},
+				ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
+					return nil
+				},
+			},
+		},
+	}
 
-// 	for _, tt := range testData {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			testPoller.mu.Lock()
-// 			testPoller.sys = &tt.mockSys
-// 			testPoller.sockets[tt.eventForPolling.SocketFd] = make(map[string][]models.PollingUnit, 2)
-// 			testPoller.addSocketEventInPolling(tt.eventForPolling)
-// 			testPoller.mu.Unlock()
+	for _, tt := range testData {
+		t.Run(tt.name, func(t *testing.T) {
+			testPoller.mu.Lock()
+			testPoller.sys = &tt.mockSys
+			testPoller.addSocketUnit(tt.eventForPolling)
+			testPoller.mu.Unlock()
 
-// 			testPoller.wait()
-// 			err := <-tt.eventForPolling.ResultChan
-// 			if err != tt.expectedChanErr {
-// 				t.Errorf("Ожидаемая ошибка %s, получено %s", tt.expectedChanErr, err)
-// 			}
-// 		})
-// 	}
-// }
+			testPoller.wait()
+			err := <-tt.eventForPolling.ResultChan
+			if err != tt.expectedChanErr {
+				t.Errorf("Ожидаемая ошибка %s, получено %s", tt.expectedChanErr, err)
+			}
+		})
+	}
+}
 
 // func Test_processEvents(t *testing.T) {
 // 	testPoller := &Epoll{
