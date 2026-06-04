@@ -356,6 +356,9 @@ func (e *Epoll) sendResultToUnits(socketFd int, err error)  {
 
 func (e *Epoll) sendResultToEventUnits(socketFd int, eventType string, err error) {
 	for _, unit := range e.socketsPolling[socketFd][eventType] {
+		if unit.ResultChan == nil {
+			continue
+		}
 		unit.ResultChan <- err
 	}
 }
