@@ -202,6 +202,8 @@ func (e *Epoll) processEvents(readySocketsLen int) {
 		if v.EventType | epollOutcomeEvent != 0 {
 			e.sendResultToEventUnits(s, "outcome", v.Err)
 			e.deleteSocketEvent(s, "outcome")
+			e.sendResultToEventUnits(s, "connect", v.Err)
+			e.deleteSocketEvent(s, "connect")
 		}
 		if e.socketEventsLen(s) > 0 {
 			if !e.isPolling() {
