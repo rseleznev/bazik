@@ -19,33 +19,4 @@ func main() {
 	conf := config.Parse("./config/config_sample.yaml")
 	b := balancer.NewBalancer(conf[0].Balancer, conf[0].Servers, net)
 	b.Run()
-
-	// b := balancer.NewBalancer(
-	// 	&models.BalancerOptions{
-	// 		Addr: models.Address{
-	// 			IP: [4]byte{127, 0, 0, 1},
-	// 			Port: 9000,
-	// 		},
-	// 		Proto: "tcp",
-	// 		BalancingAlg: "random",
-	// 		MainTimeout: 500,
-	// 		RetryAmount: 0,
-	// 		MaxClientsAmount: 3,
-	// 		MaxIdleSeconds: 300,
-	// 		MaxConnsPoolLen: 10,
-	// 		InitialConnsPoolLen: 3,
-	// 	}, 
-	// 	[]*models.ServerOptions{
-	// 		{
-	// 			Addr: models.Address{
-	// 				IP: [4]byte{127, 0, 0, 1},
-	// 				Port: 6379,
-	// 			},
-	// 			MaxClientsAmount: 3,
-	// 			MaxIdleSeconds: 300,
-	// 			MaxConnsPoolLen: 10,
-	// 			InitialConnsPoolLen: 3,
-	// 		},
-	// 	},
-	// 	net)
 }
