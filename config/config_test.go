@@ -463,3 +463,95 @@ func Test_parseIp(t *testing.T) {
 		})
 	}
 }
+
+func Test_parseIpAndPort(t *testing.T) {
+	testCases := []struct{
+		name string
+		rawValue string
+		errCheckFunc func(error)
+		expectedIpResult [4]byte
+		expectedPortResult int
+	}{
+		{
+			name: "success",
+			rawValue: "127.0.0.1:6379",
+			errCheckFunc: func(err error) {
+				if err != nil {
+					t.Errorf("Ожидаемая ошибка: [], получено: %s",  err)
+				}
+			},
+			expectedIpResult: [4]byte{127, 0, 0, 1},
+			expectedPortResult: 6379,
+		},
+		{
+			name: "success min value",
+			rawValue: "0.0.0.0:0",
+			errCheckFunc: func(err error) {
+				if err != nil {
+					t.Errorf("Ожидаемая ошибка: [], получено: %s",  err)
+				}
+			},
+			expectedIpResult: [4]byte{0, 0, 0, 0},
+			expectedPortResult: 0,
+		},
+		{
+			name: "success max value",
+			rawValue: "255.255.255.255:66000",
+			errCheckFunc: func(err error) {
+				if err != nil {
+					t.Errorf("Ожидаемая ошибка: [], получено: %s",  err)
+				}
+			},
+			expectedIpResult: [4]byte{255, 255, 255, 255},
+			expectedPortResult: 66000,
+		},
+		{
+			name: "err letters",
+			rawValue: "135.tt.h.///test2455",
+			errCheckFunc: func(err error) {
+				if err == nil {
+					t.Errorf("Ожидаемая ошибка: not nil, получено: []")
+				}
+			},
+			expectedIpResult: [4]byte{0, 0, 0, 0},
+			expectedPortResult: 0,
+		},
+		{
+			name: "err O letter",
+			rawValue: "135.23.11O.4:11O89",
+			errCheckFunc: func(err error) {
+				if err == nil {
+					t.Errorf("Ожидаемая ошибка: not nil, получено: []")
+				}
+			},
+			expectedIpResult: [4]byte{0, 0, 0, 0},
+			expectedPortResult: 0,
+		},
+		{
+			name: "err short value",
+			rawValue: "135.23:11O89",
+			errCheckFunc: func(err error) {
+				if err == nil {
+					t.Errorf("Ожидаемая ошибка: not nil, получено: []")
+				}
+			},
+			expectedIpResult: [4]byte{0, 0, 0, 0},
+			expectedPortResult: 0,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ip, port, err := parseIpAndPort(tc.rawValue)
+			if tc.errCheckFunc != nil {
+				tc.errCheckFunc(err)
+			}
+			if ip != tc.expectedIpResult {
+				t.Errorf("Ожидаемая результат: %s, получено: %s", tc.expectedIpResult, ip)
+			}
+			if port != tc.expectedPortResult {
+				t.Errorf("Ожидаемая результат: %d, получено: %d", tc.expectedPortResult, port)
+			}
+		})
+	}
+}
