@@ -391,3 +391,75 @@ func Test_validateConfigInit(t *testing.T) {
 		})
 	}
 }
+
+func Test_parseIp(t *testing.T) {
+	testCases := []struct{
+		name string
+		rawValue string
+		errCheckFunc func(error)
+		expectedResult [4]byte
+	}{
+		{
+			name: "success",
+			rawValue: "231.8.99.105",
+			errCheckFunc: func(err error) {
+				if err != nil {
+					t.Errorf("Ожидаемая ошибка: [], получено: %s",  err)
+				}
+			},
+			expectedResult: [4]byte{231, 8, 99, 105},
+		},
+		{
+			name: "success min",
+			rawValue: "0.0.0.0",
+			errCheckFunc: func(err error) {
+				if err != nil {
+					t.Errorf("Ожидаемая ошибка: [], получено: %s",  err)
+				}
+			},
+			expectedResult: [4]byte{0, 0, 0, 0},
+		},
+		{
+			name: "success max",
+			rawValue: "255.255.255.255",
+			errCheckFunc: func(err error) {
+				if err != nil {
+					t.Errorf("Ожидаемая ошибка: [], получено: %s",  err)
+				}
+			},
+			expectedResult: [4]byte{255, 255, 255, 255},
+		},
+		{
+			name: "err letters",
+			rawValue: "test.test///sghgdg",
+			errCheckFunc: func(err error) {
+				if err == nil {
+					t.Errorf("Ожидаемая ошибка: not nil, получено: []")
+				}
+			},
+			expectedResult: [4]byte{0, 0, 0, 0},
+		},
+		{
+			name: "err O letter",
+			rawValue: "127.0.O.1",
+			errCheckFunc: func(err error) {
+				if err == nil {
+					t.Errorf("Ожидаемая ошибка: not nil, получено: []")
+				}
+			},
+			expectedResult: [4]byte{0, 0, 0, 0},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			res, err := parseIp(tc.rawValue)
+			if tc.errCheckFunc != nil {
+				tc.errCheckFunc(err)
+			}
+			if res != tc.expectedResult {
+				t.Errorf("Ожидаемая результат: %s, получено: %s", tc.expectedResult, res)
+			}
+		})
+	}
+}
