@@ -17,9 +17,9 @@ type server struct {
 }
 
 func (s *server) init() error {
-	slog.Info("инициализация сервера", "module", "server")
+	slog.Info("инициализация сервера", "module", "server", "server", s.opts.Addr.Raw)
 	if s.opts.DisableConnsPool {
-		slog.Info("инициализация сервера без пула успешно завершена", "module", "server")
+		slog.Info("инициализация сервера без пула успешно завершена", "module", "server", "server", s.opts.Addr.Raw)
 		return nil
 	}
 	s.connPool = make(chan models.Conn, s.opts.MaxConnsPoolLen)
@@ -31,7 +31,7 @@ func (s *server) init() error {
 		}
 		s.connPool <- c
 	}
-	slog.Info("инициализация сервера с пулом успешно завершена", "module", "server")
+	slog.Info("инициализация сервера с пулом успешно завершена", "module", "server", "server", s.opts.Addr.Raw)
 	
 	return nil
 }
