@@ -1,8 +1,9 @@
 package balancer
 
 import (
-	"log"
+	"log/slog"
 	"math/rand"
+	"os"
 	"sync"
 	"time"
 
@@ -24,12 +25,15 @@ type TCPBalancer struct {
 }
 
 func (b *TCPBalancer) Run() {
+	slog.Info("запуск TCPBalancer", "module", "tcp_balancer")
 	listener, err := b.net.NewTCPListener(b.opts.Addr)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("ошибка создания слушающего сокета", "module", "tcp_balancer", "localAddr", b.opts.Addr.Raw, "err", err)
+		os.Exit(1)
 	}
 	// таймеры и настройки (TCP_NODELAY) слушающего сокета
 
+	slog.Info("запуск слушающего сокета", "module", "tcp_balancer")
 	for {
 		newClient, _ := listener.Accept()
 		go b.link(newClient)
@@ -37,10 +41,12 @@ func (b *TCPBalancer) Run() {
 }
 
 func (b *TCPBalancer) link(c models.Conn) {
+	slog.Info("создание связи клиент-сервер", "module", "tcp_balancer")
 	b.mu.RLock()
 	if len(b.chats) >= b.getMaxClientAmount() {
 		b.mu.RUnlock()
 		c.Close()
+		slog.Info("достигнут лимит MaxClientsAmount, соединение с клиентом закрыто", "module", "tcp_balancer")
 
 		return
 	}
@@ -50,23 +56,25 @@ func (b *TCPBalancer) link(c models.Conn) {
 	var s models.Conn
 	var err error
 	
+	slog.Info("подбор сервера", "module", "tcp_balancer")
 	for {
 		server = b.findServer()
 		s, err = server.getConn()
 		if err != nil {
 			// у конкретного сервера нет свободных соединений
 			if err == models.ErrNoConnsAvailable {
-				// логируем ошибку
+				slog.Warn("у сервера нет свободных соединений", "module", "tcp_balancer", "serverAddr", server.opts.Addr.Raw)
 				continue
 			}
 			
-			// логируем ошибку без Fatal
+			slog.Warn("ошибка сервера", "module", "tcp_balancer", "serverAddr", server.opts.Addr.Raw, "err", err)
 			c.Close()
 			return
 		}
 		break
 	}
 	id := c.GetRawAddr() + " / " + s.GetRawAddr()
+	slog.Info("сервер подобран", "module", "tcp_balancer")
 
 	chat := &chat{
 		id: id,
@@ -77,11 +85,13 @@ func (b *TCPBalancer) link(c models.Conn) {
 		client: c,
 		server: s,
 	}
+	slog.Info("создан чат", "module", "tcp_balancer", "chatId", chat.id)
 	b.addChat(chat)
 	b.process(chat)
 }
 
 func (b *TCPBalancer) process(c *chat) {
+	slog.Info("процессинг чата", "module", "tcp_balancer", "chatId", c.id)
 	availableRetries := b.getRetryAmount()
 	for {
 		err := c.tcpProxy()
@@ -91,44 +101,54 @@ func (b *TCPBalancer) process(c *chat) {
 				// ждем новое соединение от клиента
 				c.close()
 				b.deleteChat(c)
+				slog.Warn("ошибка на клиентской стороне", "module", "tcp_balancer", "chatId", c.id)
+				slog.Info("остановка чата", "module", "tcp_balancer", "chatId", c.id)
 				return
 			}
+			slog.Warn("ошибка на серверной стороне", "module", "tcp_balancer", "chatId", c.id)
 			if availableRetries > 0 { // проверяем, разрешены ли ретраи
 				// пробуем найти новый сервер
+				slog.Info("попытка найти новый сервер", "module", "tcp_balancer", "chatId", c.id)
 				availableRetries--
 				tryCounter := 1 // защита от бесконечного цикла поиска сервера
 				for {
 					if tryCounter > 3 { // слишком много неудачных попыток найти новый сервер
 						c.close()
 						b.deleteChat(c)
+						slog.Warn("слишком много попыток найти новый сервер", "module", "tcp_balancer", "chatId", c.id)
+						slog.Info("остановка чата", "module", "tcp_balancer", "chatId", c.id)
 						return
 					}
 					newServer, err := b.findServer().getConn()
 					if err != nil {
 						if err == models.ErrNoConnsAvailable {
-							// логируем ошибку
+							slog.Warn("у сервера нет свободных соединений", "module", "tcp_balancer", "serverAddr", newServer.GetRawAddr())
 							tryCounter++
 							continue
 						}
 						
-						// логируем ошибку без Fatal
 						c.close()
 						b.deleteChat(c)
+						slog.Warn("ошибка сервера", "module", "tcp_balancer", "serverAddr", newServer.GetRawAddr(), "err", err)
+						slog.Info("остановка чата", "module", "tcp_balancer", "chatId", c.id)
 						return
 					}
 					c.server = newServer
 					break
 				}
+				slog.Info("новый сервер подобран", "module", "tcp_balancer", "chatId", c.id)
 				
 				continue
 			}
 			// если ретраи не разрешены, закрываем соединение с клиентом
 			c.close()
 			b.deleteChat(c)
+			slog.Info("остановка чата без ретраев", "module", "tcp_balancer", "chatId", c.id)
 			return
 		}
 		// если чат завершился без ошибок,
 		// т.е. по таймеру бездействия
+		slog.Info("остановка чата по таймеру бездействия", "module", "tcp_balancer", "chatId", c.id)
 		break
 	}
 	b.deleteChat(c)

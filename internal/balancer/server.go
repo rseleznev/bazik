@@ -1,6 +1,7 @@
 package balancer
 
 import (
+	"log/slog"
 	"sync/atomic"
 	"time"
 
@@ -16,7 +17,9 @@ type server struct {
 }
 
 func (s *server) init() error {
+	slog.Info("инициализация сервера", "module", "server")
 	if s.opts.DisableConnsPool {
+		slog.Info("инициализация сервера без пула успешно завершена", "module", "server")
 		return nil
 	}
 	s.connPool = make(chan models.Conn, s.opts.MaxConnsPoolLen)
@@ -28,6 +31,7 @@ func (s *server) init() error {
 		}
 		s.connPool <- c
 	}
+	slog.Info("инициализация сервера с пулом успешно завершена", "module", "server")
 	
 	return nil
 }
@@ -85,17 +89,19 @@ func (s *server) storeConn(c models.Conn) {
 	if len(s.connPool) < s.opts.MaxConnsPoolLen {
 		n, err := c.CheckUnread()
 		if err != nil {
-			// логируем ошибку
+			slog.Error("ошибка вызова CheckUnread", "module", "server", "serverAddr", s.opts.Addr.Raw, "err", err)
 		}
 		if n != 0 {
+			slog.Warn("непрочитанные данные сервера", "module", "server", "serverAddr", s.opts.Addr.Raw, "num", n)
 			return
 		}
 
 		n, err = c.CheckUnsent()
 		if err != nil {
-			// логируем ошибку
+			slog.Error("ошибка вызова CheckUnsent", "module", "server", "serverAddr", s.opts.Addr.Raw, "err", err)
 		}
 		if n != 0 {
+			slog.Warn("неотправленные данные сервера", "module", "server", "serverAddr", s.opts.Addr.Raw, "num", n)
 			return
 		}
 

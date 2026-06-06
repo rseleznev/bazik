@@ -2,6 +2,7 @@ package network
 
 import (
 	"errors"
+	"log/slog"
 	"runtime"
 	"strconv"
 	"sync"
@@ -50,12 +51,13 @@ func (s *socket) Accept() (models.Conn, error) {
 			if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EWOULDBLOCK) {
 				err := s.pollWithoutTimeout("income")
 				if err != nil {
+					slog.Error("ошибка слушающего сокета", "module", "socket", "addr", s.addr.Raw, "err", err)
 					return nil, err
 				}
 
 				continue		
 			}
-
+			slog.Error("ошибка слушающего сокета", "module", "socket", "addr", s.addr.Raw, "err", err)
 			return nil, err
 		}
 		break
@@ -94,10 +96,12 @@ func (s *socket) Connect() error {
 					if err == models.ErrPollTimeout {
 						return models.ErrTimeout
 					}
+					slog.Error("ошибка подключения сокета", "module", "socket", "addr", s.addr.Raw, "err", err)
 					return err
 				}
 				continue
 			}
+			slog.Error("ошибка подключения сокета", "module", "socket", "addr", s.addr.Raw, "err", err)
 			return err
 		}
 		break

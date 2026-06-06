@@ -1,6 +1,7 @@
 package network
 
 import (
+	"log/slog"
 	"sync"
 	"syscall"
 
@@ -30,6 +31,7 @@ func NewNet(p poller) *net {
 func (n *net) NewTCPListener(addr models.Address) (models.Listener, error) {
 	sFd, err := n.newSocket("tcp")
 	if err != nil {
+		slog.Error("ошибка создания сокета", "module", "network", "addr", addr.Raw, "err", err)
 		return nil, err
 	}
 	s := &socket{
@@ -42,10 +44,12 @@ func (n *net) NewTCPListener(addr models.Address) (models.Listener, error) {
 	}
 	err = s.bind()
 	if err != nil {
+		slog.Error("ошибка вызова bind", "module", "network", "addr", addr.Raw, "err", err)
 		return nil, err
 	}
 	err = s.listen()
 	if err != nil {
+		slog.Error("ошибка вызова listen", "module", "network", "addr", addr.Raw, "err", err)
 		return nil, err
 	}
 	
@@ -55,6 +59,7 @@ func (n *net) NewTCPListener(addr models.Address) (models.Listener, error) {
 func (n *net) NewTCPConn(addr models.Address) (models.Conn, error) {
 	sFd, err := n.newSocket("tcp")
 	if err != nil {
+		slog.Error("ошибка создания сокета", "module", "network", "addr", addr.Raw, "err", err)
 		return nil, err
 	}
 	return &socket{

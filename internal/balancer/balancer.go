@@ -1,7 +1,8 @@
 package balancer
 
 import (
-	"log"
+	"log/slog"
+	"os"
 	"sync"
 
 	"github.com/rseleznev/bazik/internal/models"
@@ -29,10 +30,13 @@ func NewBalancer(opts *models.BalancerOptions, servers []*models.ServerOptions, 
 			}
 			err := s.init()
 			if err != nil {
-				log.Fatal(err)
+				slog.Error("ошибка инициализации сервера", "module", "balancer", "serverAddr", s.opts.Addr.Raw, "err", err)
+				os.Exit(1)
 			}
 			b.servers = append(b.servers, s)
 		}
+		slog.Info("создан TCPBalancer", "module", "balancer")
+
 		return b
 
 	default:

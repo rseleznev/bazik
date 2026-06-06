@@ -2,7 +2,7 @@ package config
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"strconv"
 
@@ -106,23 +106,27 @@ type BalancerConfig struct {
 }
 
 func Parse(path string) []BalancerConfig {
+	slog.Info("парсинг конфига", "module", "config", "path", path)
 	balancerConf := make([]BalancerConfig, 0, 3)
 	srvOptions := make([]*models.ServerOptions, 0, 10)
 	d, err := os.ReadFile(path)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("ошибка чтения конфига", "module", "config", "path", path, "err", err)
+		os.Exit(1)
 	}
 	c := &Config{}
 	yaml.Unmarshal(d, c)
 	err = validateConfig(c)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("ошибка валидации конфига", "module", "config", "configParams", c, "err", err)
+		os.Exit(1)
 	}
 
 	portStr := strconv.Itoa(c.Port)
 	ipBytes, err := parseIp(c.IP)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("ошибка парсинга IP", "module", "config", "rawIp", c.IP, "err", err)
+		os.Exit(1)
 	}
 	bO := &models.BalancerOptions{
 		Addr: models.Address{
@@ -142,7 +146,8 @@ func Parse(path string) []BalancerConfig {
 	for _, v := range c.Servers {
 		ipBytes, port, err := parseIpAndPort(v.Address)
 		if err != nil {
-			log.Fatal(err)
+			slog.Error("ошибка парсинга адреса сервера", "module", "config", "rawAddr", v.Address, "err", err)
+			os.Exit(1)
 		}
 		sO := &models.ServerOptions{
 			Addr: models.Address{
@@ -163,6 +168,7 @@ func Parse(path string) []BalancerConfig {
 		Balancer: bO,
 		Servers: srvOptions,
 	})
+	slog.Info("парсинг конфига успешно завершен", "module", "config", "configParams", c)
 	
 	return balancerConf
 }

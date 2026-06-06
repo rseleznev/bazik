@@ -1,6 +1,7 @@
 package balancer
 
 import (
+	"log/slog"
 	"runtime"
 	"sync"
 	"time"
@@ -54,6 +55,8 @@ func (c *chat) end() {
 
 // tcpProxy проксирует TCP-трафик в режиме zero-copy
 func (c *chat) tcpProxy() error {
+	slog.Info("проксирование чата", "module", "chat", "chatId", c.id)
+	defer slog.Info("проксирование чата завершено", "module", "chat", "chatId", c.id)
 	c.setup()
 
 	go func() {
@@ -66,6 +69,7 @@ func (c *chat) tcpProxy() error {
 				}
 				c.setClientErr(err)
 				c.pause()
+				slog.Warn("ошибка на клиентской стороне", "module", "chat", "err", err)
 				return
 			}
 		}
@@ -81,6 +85,7 @@ func (c *chat) tcpProxy() error {
 				}
 				c.setServerErr(err)
 				c.pause()
+				slog.Warn("ошибка на серверной стороне", "module", "chat", "err", err)
 				return
 			}
 		}
@@ -89,8 +94,6 @@ func (c *chat) tcpProxy() error {
 	for !c.isEnded() {
 		if c.isPaused() {
 			if c.isClientErr() {
-				// в случае клиентской ошибки нам нечего делать с клиентом,
-				// поэтому мы просто считаем соединение (чат) завершенным
 				return models.ErrClientSide
 			}
 			c.server.Close()
