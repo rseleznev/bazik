@@ -5,4 +5,4 @@ RUN make
 
 FROM ubuntu:22.04
 COPY --from=builder ./bazik .
-ENTRYPOINT ["./bazik"]
+ENTRYPOINT ["/bazik"]
