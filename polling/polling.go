@@ -115,6 +115,7 @@ func (e *Epoll) wait() {
 		e.mu.Lock()
 		if n > 0 { // Пришли какие-то события
 			startTime = time.Now()
+			waitTypeIdentifier = 0
 			e.addReadyEvents(e.eventsBuf[:n])
 			go e.processEvents(n)
 		}
