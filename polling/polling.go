@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/rseleznev/bazik/internal/models"
 	"golang.org/x/sys/unix"
@@ -101,8 +102,10 @@ func (e *Epoll) wait() {
 	}
 	e.startPolling()
 	e.mu.Unlock()
+	startTime := time.Now()
+	waitTypeIdentifier := 0
 	for {
-		n, err := e.sys.Wait(e.fd, e.eventsBuf, 0)
+		n, err := e.sys.Wait(e.fd, e.eventsBuf, waitTypeIdentifier)
 		if err != nil {
 			e.setError(err)
 			go e.pushError()
@@ -111,6 +114,7 @@ func (e *Epoll) wait() {
 		}
 		e.mu.Lock()
 		if n > 0 { // Пришли какие-то события
+			startTime = time.Now()
 			e.addReadyEvents(e.eventsBuf[:n])
 			go e.processEvents(n)
 		}
@@ -119,6 +123,9 @@ func (e *Epoll) wait() {
 			e.mu.Unlock()
 
 			break
+		}
+		if time.Now().After(startTime.Add(time.Millisecond*200)) {
+			waitTypeIdentifier = -1
 		}
 		e.mu.Unlock()
 		runtime.Gosched()
