@@ -195,11 +195,11 @@ func (e *Epoll) processEvents(readySocketsLen int) {
 			e.deleteSocketFromPolling(s)
 			continue
 		}
-		if v.EventType | epollIncomeEvent != 0 {
+		if v.EventType & epollIncomeEvent != 0 {
 			e.sendResultToEventUnits(s, "income", v.Err)
 			e.deleteSocketEvent(s, "income")
 		}
-		if v.EventType | epollOutcomeEvent != 0 {
+		if v.EventType & epollOutcomeEvent != 0 {
 			e.sendResultToEventUnits(s, "outcome", v.Err)
 			e.deleteSocketEvent(s, "outcome")
 			e.sendResultToEventUnits(s, "connect", v.Err)
