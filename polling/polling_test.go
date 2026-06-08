@@ -511,7 +511,7 @@ func Test_processEvents(t *testing.T) {
 			expectedPollerErr: nil,
 			eventForPolling: models.PollingUnit{
 				SocketFd: 4,
-				EventType: "outcome",
+				EventType: "income",
 				ResultChan: nil,
 			},
 			readyEvents: []syscall.EpollEvent{
