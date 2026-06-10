@@ -67,7 +67,7 @@ func (s *socket) Accept() (models.Conn, error) {
 	if !ok {
 		return nil, models.ErrAddrAssert
 	}
-	rawAddr := string(addr.Addr[0]) + "." + string(addr.Addr[1]) + "." + string(addr.Addr[2]) + "." + string(addr.Addr[3]) + ":" + strconv.Itoa(addr.Port)
+	rawAddr := strconv.Itoa(int(addr.Addr[0])) + "." + strconv.Itoa(int(addr.Addr[1])) + "." + strconv.Itoa(int(addr.Addr[2])) + "." + strconv.Itoa(int(addr.Addr[3])) + ":" + strconv.Itoa(addr.Port)
 
 	return &socket{
 		fd: sFd,
