@@ -125,7 +125,7 @@ func (e *Epoll) wait() {
 
 			break
 		}
-		if time.Now().After(startTime.Add(time.Millisecond*200)) {
+		if time.Now().After(startTime.Add(time.Millisecond*50)) {
 			waitTypeIdentifier = -1
 		}
 		e.mu.Unlock()
