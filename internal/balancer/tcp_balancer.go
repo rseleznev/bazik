@@ -105,6 +105,8 @@ func (b *TCPBalancer) process(c *chat) {
 				b.deleteChat(c)
 				slog.Warn("ошибка на клиентской стороне", "module", "tcp_balancer", "chatId", c.id)
 				slog.Info("остановка чата", "module", "tcp_balancer", "chatId", c.id)
+
+				// разобраться, почему здесь соединение не получает сообщение клиента
 				return
 			}
 			slog.Warn("ошибка на серверной стороне", "module", "tcp_balancer", "chatId", c.id)
