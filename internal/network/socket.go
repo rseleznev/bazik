@@ -3,7 +3,7 @@ package network
 import (
 	"errors"
 	"log/slog"
-	"runtime"
+	// "runtime"
 	"strconv"
 	"sync"
 	"syscall"
@@ -20,7 +20,8 @@ type socket struct {
 	idleDeadline time.Time
 
 	logActivity bool
-	lastActivity time.Time
+	logActivityChan chan time.Time
+	// lastActivity time.Time
 
 	pipeWriteFd int
 	pipeReadFd int
@@ -135,7 +136,7 @@ func (s *socket) poll(eventType string) error {
 
 				return models.ErrPollTimeout
 			}
-			runtime.Gosched()
+			// runtime.Gosched()
 			continue
 
 		}
@@ -168,7 +169,7 @@ func (s *socket) pollFdWithTimeout(fd int, t time.Duration, eventType string) er
 
 				return models.ErrPollTimeout
 			}
-			runtime.Gosched()
+			// runtime.Gosched()
 			continue
 
 		}
@@ -265,20 +266,18 @@ func (s *socket) Close() {
 
 func (s *socket) LogActivity() {
 	s.logActivity = true
-	s.updateLastActivity()
+	s.logActivityChan = make(chan time.Time)
 }
 
-func (s *socket) LastActivity() time.Time {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.lastActivity
+func (s *socket) LastActivity() <-chan time.Time {
+	return s.logActivityChan
 }
 
-func (s *socket) SetLastActivity(t time.Time) {
-	s.mu.Lock()
-	s.lastActivity = t
-	s.mu.Unlock()
-}
+// func (s *socket) SetLastActivity(t time.Time) {
+// 	s.mu.Lock()
+// 	s.lastActivity = t
+// 	s.mu.Unlock()
+// }
 
 func (s *socket) SetIdleDeadline(t time.Time) {
 	s.mu.Lock()
@@ -293,9 +292,7 @@ func (s *socket) getIdleDeadline() time.Time {
 }
 
 func (s *socket) updateLastActivity() {
-	s.mu.Lock()
-	s.lastActivity = time.Now()
-	s.mu.Unlock()
+	s.logActivityChan <- time.Now()
 }
 
 func (s *socket) GetRawAddr() string {

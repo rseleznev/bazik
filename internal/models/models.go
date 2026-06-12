@@ -58,8 +58,7 @@ type Conn interface {
 	SetIdleDeadline(time.Time)
 	SetMainTimeout(t time.Duration)
 	LogActivity()
-	LastActivity() time.Time
-	SetLastActivity(time.Time)
+	LastActivity() <-chan time.Time
 	GetRawAddr() string
 	CheckUnread() (int, error)
 	CheckUnsent() (int, error)

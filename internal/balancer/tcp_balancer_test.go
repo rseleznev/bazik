@@ -30,8 +30,7 @@ type mockConn struct {
 	setIdleDeadlineFunc func(time.Time)
 	setMainTimeoutFunc func(t time.Duration)
 	logActivityFunc func()
-	lastActivityFunc func() time.Time
-	setLastActivityFunc func(time.Time)
+	lastActivityFunc func() <-chan time.Time
 	getRawAddrFunc func() string
 	checkUnreadFunc func() (int, error)
 	checkUnsentFunc func() (int, error)
@@ -51,10 +50,9 @@ func (m mockConn) CopyTo(dst models.Conn) error {
 func (m mockConn) SetIdleDeadline(time.Time) {}
 func (m mockConn) SetMainTimeout(t time.Duration) {}
 func (m mockConn) LogActivity() {}
-func (m mockConn) LastActivity() time.Time {
+func (m mockConn) LastActivity() <-chan time.Time {
 	return m.lastActivityFunc()
 }
-func (m mockConn) SetLastActivity(time.Time) {}
 func (m mockConn) GetRawAddr() string {
 	return m.getRawAddrFunc()
 }
@@ -105,8 +103,12 @@ func TestMain(m *testing.M) {
 				copyToFunc: func(_ models.Conn) error {
 					return models.ErrIdleTimeout
 				},
-				lastActivityFunc: func() time.Time {
-					return time.Now()
+				lastActivityFunc: func() <-chan time.Time {
+					ch := make(chan time.Time)
+					go func () {
+						ch <- time.Now()
+					}()
+					return ch
 				},
 				checkUnreadFunc: func() (int, error) {
 					return 0, nil
@@ -148,8 +150,12 @@ func Test_link(t *testing.T) {
 				copyToFunc: func(_ models.Conn) error {
 					return models.ErrIdleTimeout
 				},
-				lastActivityFunc: func() time.Time {
-					return time.Now()
+				lastActivityFunc: func() <-chan time.Time {
+					ch := make(chan time.Time)
+					go func () {
+						ch <- time.Now()
+					}()
+					return ch
 				},
 				closeFunc: func() {},
 			},

@@ -364,6 +364,7 @@ func TestCopyTo(t *testing.T) {
 				spliceFunc: func(_, _ int) (int64, error) {
 					return 0, syscall.EAGAIN
 				},
+				getUnreadFunc: func(i int) (int, error) {return 10, nil},
 			},
 			p: mockPoller{
 				addFunc: func(pu models.PollingUnit) error {
