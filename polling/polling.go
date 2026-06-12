@@ -107,6 +107,9 @@ func (e *Epoll) wait() {
 	for {
 		n, err := e.sys.Wait(e.fd, e.eventsBuf, waitTypeIdentifier)
 		if err != nil {
+			if errors.Is(err, syscall.EINTR) {
+				continue
+			}
 			e.setError(err)
 			go e.pushError()
 
