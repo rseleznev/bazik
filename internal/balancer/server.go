@@ -106,6 +106,23 @@ func (s *server) storeConn(c models.Conn) {
 		}
 
 		s.connPool <- c
+		slog.Info("соединение возвращено в пул", "module", "server", "server", s.opts.Addr.Raw)
+	}
+}
+
+func (s *server) closeConn(c models.Conn) {
+	defer c.Close()
+	s.activeConnectionsAmount.Add(-1)
+	if !s.opts.DisableConnsPool {
+		if len(s.connPool) < s.opts.MaxConnsPoolLen {
+			nC, err := s.newConn() // разобраться, почему возвращает ошибку
+			if err != nil {
+				slog.Warn("ошибка создания подключения к серверу", "module", "server", "serverAddr", s.opts.Addr.Raw, "err", err)
+				return
+			}
+			s.connPool <- nC
+			slog.Info("новое соединение помещено в пул", "module", "server", "server", s.opts.Addr.Raw)
+		}
 	}
 }
 

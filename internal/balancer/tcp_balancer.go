@@ -100,7 +100,8 @@ func (b *TCPBalancer) process(c *chat) {
 			if err == models.ErrClientSide {
 				// в случае клиентской ошибки просто прекращаем работу,
 				// ждем новое соединение от клиента
-				c.close()
+				c.client.Close()
+				b.closeServerConn(c.server)
 				b.deleteChat(c)
 				slog.Warn("ошибка на клиентской стороне", "module", "tcp_balancer", "chatId", c.id)
 				slog.Info("остановка чата", "module", "tcp_balancer", "chatId", c.id)
@@ -114,7 +115,8 @@ func (b *TCPBalancer) process(c *chat) {
 				tryCounter := 1 // защита от бесконечного цикла поиска сервера
 				for {
 					if tryCounter > 3 { // слишком много неудачных попыток найти новый сервер
-						c.close()
+						c.client.Close()
+						b.closeServerConn(c.server)
 						b.deleteChat(c)
 						slog.Warn("слишком много попыток найти новый сервер", "module", "tcp_balancer", "chatId", c.id)
 						slog.Info("остановка чата", "module", "tcp_balancer", "chatId", c.id)
@@ -128,7 +130,8 @@ func (b *TCPBalancer) process(c *chat) {
 							continue
 						}
 						
-						c.close()
+						c.client.Close()
+						b.closeServerConn(c.server)
 						b.deleteChat(c)
 						slog.Warn("ошибка сервера", "module", "tcp_balancer", "serverAddr", newServer.GetRawAddr(), "err", err)
 						slog.Info("остановка чата", "module", "tcp_balancer", "chatId", c.id)
@@ -153,7 +156,7 @@ func (b *TCPBalancer) process(c *chat) {
 		break
 	}
 	b.deleteChat(c)
-	b.storeConn(c.server)
+	b.storeServerConn(c.server)
 }
 
 func (b *TCPBalancer) findServer() *server {
@@ -168,11 +171,21 @@ func (b *TCPBalancer) findServer() *server {
 	}
 }
 
-func (b *TCPBalancer) storeConn(c models.Conn) {
+func (b *TCPBalancer) storeServerConn(c models.Conn) {
 	addr := c.GetRawAddr()
 	for _, s := range b.servers {
 		if s.opts.Addr.Raw == addr {
 			s.storeConn(c)
+			break
+		}
+	}
+}
+
+func (b *TCPBalancer) closeServerConn(c models.Conn) {
+	addr := c.GetRawAddr()
+	for _, s := range b.servers {
+		if s.opts.Addr.Raw == addr {
+			s.closeConn(c)
 			break
 		}
 	}
