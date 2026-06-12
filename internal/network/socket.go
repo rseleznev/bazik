@@ -240,6 +240,9 @@ func (s *socket) transfer(src, dst int) error {
 			if errors.Is(err, syscall.EAGAIN) {
 				err = s.pollFdWithTimeout(dst, s.getTimeout(), "outcome")
 				if err == models.ErrPollTimeout {
+					if n, _ := s.CheckUnread(); n == 0 {
+						return models.ErrEOF
+					}
 					return models.ErrTimeout
 				}
 

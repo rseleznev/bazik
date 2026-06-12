@@ -18,6 +18,7 @@ var (
 	ErrWrongProto = errors.New("wrong proto type")
 	ErrAddrAssert = errors.New("address assertion error")
 	ErrNumInvalid = errors.New("invalid number value")
+	ErrEOF = errors.New("end-of-file - connection was orderly closed")
 
 	// Server
 	ErrNoConnsAvailable = errors.New("no more conns to the server available")
