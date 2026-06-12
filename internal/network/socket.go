@@ -3,7 +3,6 @@ package network
 import (
 	"errors"
 	"log/slog"
-	// "runtime"
 	"strconv"
 	"sync"
 	"syscall"
@@ -16,12 +15,11 @@ type socket struct {
 	fd int
 	mu sync.RWMutex
 	addr models.Address
-	timeout time.Duration
-	idleDeadline time.Time
+	mainTimeout time.Duration
+	idleTimeout time.Duration
 
 	logActivity bool
 	logActivityChan chan time.Time
-	// lastActivity time.Time
 
 	pipeWriteFd int
 	pipeReadFd int
@@ -121,6 +119,7 @@ func (s *socket) poll(eventType string) error {
 	if err != nil {
 		return err
 	}
+	timer := time.NewTimer(s.getIdleTimeout())
 
 	for {
 		select {
@@ -130,14 +129,10 @@ func (s *socket) poll(eventType string) error {
 			}
 			return nil
 
-		default:
-			if time.Now().After(s.getIdleDeadline()) {
-				s.poller.StopUnitPolling(pUnit)
+		case <-timer.C:
+			s.poller.StopUnitPolling(pUnit)
 
-				return models.ErrPollTimeout
-			}
-			// runtime.Gosched()
-			continue
+			return models.ErrPollTimeout
 
 		}
 	}
@@ -154,7 +149,7 @@ func (s *socket) pollFdWithTimeout(fd int, t time.Duration, eventType string) er
 		return err
 	}
 
-	deadline := time.Now().Add(t)
+	timer := time.NewTimer(t)
 	for {
 		select {
 		case err = <-pUnit.ResultChan:
@@ -163,14 +158,10 @@ func (s *socket) pollFdWithTimeout(fd int, t time.Duration, eventType string) er
 			}
 			return nil
 
-		default:
-			if time.Now().After(deadline) {
-				s.poller.StopUnitPolling(pUnit)
+		case <-timer.C:
+			s.poller.StopUnitPolling(pUnit)
 
-				return models.ErrPollTimeout
-			}
-			// runtime.Gosched()
-			continue
+			return models.ErrPollTimeout
 
 		}
 	}
@@ -273,22 +264,16 @@ func (s *socket) LastActivity() <-chan time.Time {
 	return s.logActivityChan
 }
 
-// func (s *socket) SetLastActivity(t time.Time) {
-// 	s.mu.Lock()
-// 	s.lastActivity = t
-// 	s.mu.Unlock()
-// }
-
-func (s *socket) SetIdleDeadline(t time.Time) {
+func (s *socket) SetIdleTimeout(t time.Duration) {
 	s.mu.Lock()
-	s.idleDeadline = t
+	s.idleTimeout = t
 	s.mu.Unlock()
 }
 
-func (s *socket) getIdleDeadline() time.Time {
+func (s *socket) getIdleTimeout() time.Duration {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.idleDeadline
+	return s.idleTimeout
 }
 
 func (s *socket) updateLastActivity() {
@@ -312,11 +297,11 @@ func (s *socket) GetFd() int {
 }
 
 func (s *socket) SetMainTimeout(t time.Duration) {
-	s.timeout = t
+	s.mainTimeout = t
 }
 
 func (s *socket) getTimeout() time.Duration {
-	return s.timeout
+	return s.mainTimeout
 }
 
 func (s *socket) getPipeWriteFd() int {

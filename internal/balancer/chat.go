@@ -11,7 +11,6 @@ import (
 type chat struct {
 	id string
 	mu sync.RWMutex
-	// paused bool
 	stopped bool
 	mainTimeout time.Duration
 	idleTimeout time.Duration
@@ -24,20 +23,6 @@ type chat struct {
 	clientErr error
 	serverErr error
 }
-
-// func (c *chat) isPaused() bool {
-// 	c.mu.RLock()
-// 	defer c.mu.RUnlock()
-// 	return c.paused
-// }
-
-// func (c *chat) pause() {
-// 	c.mu.Lock()
-// 	if !c.paused {
-// 		c.paused = true
-// 	}
-// 	c.mu.Unlock()
-// }
 
 func (c *chat) isStopped() bool {
 	c.mu.RLock()
@@ -97,12 +82,10 @@ outer:
 		select {
 		case clientLastActivity := <-c.client.LastActivity():
 			c.setLastActivity(clientLastActivity)
-			c.server.SetIdleDeadline(clientLastActivity.Add(c.getIdleTimeout()))
 			continue
 
 		case serverLastActivity := <-c.server.LastActivity():
 			c.setLastActivity(serverLastActivity)
-			c.client.SetIdleDeadline(serverLastActivity.Add(c.getIdleTimeout()))
 			continue
 
 		case <-c.ctlChan:
@@ -127,11 +110,9 @@ func (c *chat) setup() {
 
 	now := time.Now()
 	c.setLastActivity(now)
-	// c.client.SetLastActivity(now)
-	// c.server.SetLastActivity(now)
 	
-	c.client.SetIdleDeadline(now.Add(c.getIdleTimeout()))
-	c.server.SetIdleDeadline(now.Add(c.getIdleTimeout()))
+	c.client.SetIdleTimeout(c.getIdleTimeout())
+	c.server.SetIdleTimeout(c.getIdleTimeout())
 
 	c.client.SetMainTimeout(c.getMainTimeout())
 	c.server.SetMainTimeout(c.getMainTimeout())

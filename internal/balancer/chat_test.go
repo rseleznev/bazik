@@ -23,7 +23,7 @@ func Test_tcpProxy(t *testing.T) {
 			expectedErr: nil,
 			client: mockConn{
 				logActivityFunc: func() {},
-				setIdleDeadlineFunc: func(_ time.Time) {},
+				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
 				copyToFunc: func(_ models.Conn) error {return models.ErrIdleTimeout},
 				lastActivityFunc: func() <-chan time.Time {
@@ -37,7 +37,7 @@ func Test_tcpProxy(t *testing.T) {
 			},
 			server: mockConn{
 				logActivityFunc: func() {},
-				setIdleDeadlineFunc: func(_ time.Time) {},
+				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
 				copyToFunc: func(_ models.Conn) error {return models.ErrIdleTimeout},
 				lastActivityFunc: func() <-chan time.Time {
@@ -55,7 +55,7 @@ func Test_tcpProxy(t *testing.T) {
 			expectedErr: nil,
 			client: mockConn{
 				logActivityFunc: func() {},
-				setIdleDeadlineFunc: func(_ time.Time) {},
+				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
 				copyToFunc: func(_ models.Conn) error {
 					if requestCounter == 0 {
@@ -75,7 +75,7 @@ func Test_tcpProxy(t *testing.T) {
 			},
 			server: mockConn{
 				logActivityFunc: func() {},
-				setIdleDeadlineFunc: func(_ time.Time) {},
+				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
 				copyToFunc: func(_ models.Conn) error {
 					time.Sleep(time.Millisecond*200)
@@ -96,7 +96,7 @@ func Test_tcpProxy(t *testing.T) {
 			expectedErr: nil,
 			client: mockConn{
 				logActivityFunc: func() {},
-				setIdleDeadlineFunc: func(_ time.Time) {},
+				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
 				copyToFunc: func(_ models.Conn) error {
 					time.Sleep(time.Millisecond*200)
@@ -113,7 +113,7 @@ func Test_tcpProxy(t *testing.T) {
 			},
 			server: mockConn{
 				logActivityFunc: func() {},
-				setIdleDeadlineFunc: func(_ time.Time) {},
+				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
 				copyToFunc: func(_ models.Conn) error {
 					if requestCounter == 0 {
@@ -137,7 +137,7 @@ func Test_tcpProxy(t *testing.T) {
 			expectedErr: models.ErrClientSide,
 			client: mockConn{
 				logActivityFunc: func() {},
-				setIdleDeadlineFunc: func(_ time.Time) {},
+				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
 				copyToFunc: func(_ models.Conn) error {
 					time.Sleep(time.Second*1)
@@ -154,7 +154,7 @@ func Test_tcpProxy(t *testing.T) {
 			},
 			server: mockConn{
 				logActivityFunc: func() {},
-				setIdleDeadlineFunc: func(_ time.Time) {},
+				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
 				copyToFunc: func(_ models.Conn) error {
 					time.Sleep(time.Millisecond*300)
@@ -175,7 +175,7 @@ func Test_tcpProxy(t *testing.T) {
 			expectedErr: models.ErrNoConnsAvailable,
 			client: mockConn{
 				logActivityFunc: func() {},
-				setIdleDeadlineFunc: func(_ time.Time) {},
+				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
 				copyToFunc: func(_ models.Conn) error {
 					time.Sleep(time.Millisecond*300)
@@ -192,7 +192,7 @@ func Test_tcpProxy(t *testing.T) {
 			},
 			server: mockConn{
 				logActivityFunc: func() {},
-				setIdleDeadlineFunc: func(_ time.Time) {},
+				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
 				copyToFunc: func(_ models.Conn) error {
 					time.Sleep(time.Second*1)

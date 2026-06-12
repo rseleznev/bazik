@@ -16,7 +16,7 @@ var testSocket = &socket{
 		IP: [4]byte{127, 0, 0, 1},
 		Port: 3000,
 	},
-	timeout: time.Millisecond*500,
+	mainTimeout: time.Millisecond*500,
 }
 
 type mockSys struct{
@@ -384,7 +384,7 @@ func TestCopyTo(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			testSocket.sys = tc.sys
 			testSocket.poller = tc.p
-			testSocket.idleDeadline = time.Now().Add(time.Second*1)
+			testSocket.idleTimeout = time.Second*1
 
 			err := testSocket.CopyTo(tc.dst)
 			if err != tc.expectedErr {

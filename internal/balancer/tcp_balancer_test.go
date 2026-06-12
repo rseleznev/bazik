@@ -27,7 +27,7 @@ type mockConn struct {
 	closeFunc func()
 	getFdFunc func() int
 	copyToFunc func(models.Conn) error
-	setIdleDeadlineFunc func(time.Time)
+	setIdleTimeoutFunc func(time.Duration)
 	setMainTimeoutFunc func(t time.Duration)
 	logActivityFunc func()
 	lastActivityFunc func() <-chan time.Time
@@ -47,7 +47,7 @@ func (m mockConn) GetFd() int {
 func (m mockConn) CopyTo(dst models.Conn) error {
 	return m.copyToFunc(dst)
 }
-func (m mockConn) SetIdleDeadline(time.Time) {}
+func (m mockConn) SetIdleTimeout(time.Duration) {}
 func (m mockConn) SetMainTimeout(t time.Duration) {}
 func (m mockConn) LogActivity() {}
 func (m mockConn) LastActivity() <-chan time.Time {

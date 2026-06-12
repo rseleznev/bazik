@@ -55,8 +55,8 @@ type Conn interface {
 	Close()
 	GetFd() int
 	CopyTo(Conn) error
-	SetIdleDeadline(time.Time)
-	SetMainTimeout(t time.Duration)
+	SetIdleTimeout(time.Duration)
+	SetMainTimeout(time.Duration)
 	LogActivity()
 	LastActivity() <-chan time.Time
 	GetRawAddr() string
