@@ -34,7 +34,7 @@ type Epoll struct {
 	readyEvents []syscall.EpollEvent
 
 	// сокеты, которые добавлены в interest_list
-	socketsInterestList map[int]struct{}
+	// socketsInterestList map[int]struct{}
 	// сокеты, которые поллим, события и каналы для возврата результата
 	socketsPolling map[int]map[string][]models.PollingUnit
 	
@@ -56,7 +56,7 @@ func NewEpoll() (*Epoll, error) {
 		mu: sync.Mutex{},
 		eventsBuf: make([]syscall.EpollEvent, 5),
 		readyEvents: make([]syscall.EpollEvent, 0, 5),
-		socketsInterestList: make(map[int]struct{}),
+		// socketsInterestList: make(map[int]struct{}),
 		socketsPolling: make(map[int]map[string][]models.PollingUnit),
 		socketsUnexpErr: make(map[int]error),
 		sys: epollRealSyscalls{},
@@ -75,12 +75,14 @@ func (e *Epoll) Add(unit models.PollingUnit) error {
 	if !e.checkEventType(unit.EventType) {
 		return models.ErrPollUnknownEventType
 	}
-	if !e.isSocketInInterestList(unit.SocketFd) {
+	if !e.isSocketPolling(unit.SocketFd) {
 		err := e.addCommonEvent(unit.SocketFd)
 		if err != nil {
-			return err
+			if !errors.Is(err, syscall.EEXIST) {
+				return err
+			}
 		}
-		e.addedInInterestList(unit.SocketFd)
+		// e.addedInInterestList(unit.SocketFd)
 	}
 	e.addSocketUnit(unit)
 
@@ -326,14 +328,14 @@ func (e *Epoll) addCommonEvent(socketFd int) error {
 // 	return nil
 // }
 
-func (e *Epoll) isSocketInInterestList(socketFd int) bool {
-	_, ok := e.socketsInterestList[socketFd]
+func (e *Epoll) isSocketPolling(socketFd int) bool {
+	_, ok := e.socketsPolling[socketFd]
 	return ok
 }
 
-func (e *Epoll) addedInInterestList(socketFd int) {
-	e.socketsInterestList[socketFd] = struct{}{}
-}
+// func (e *Epoll) addedInInterestList(socketFd int) {
+// 	e.socketsInterestList[socketFd] = struct{}{}
+// }
 
 // func (e *Epoll) deletedFromInterestList(socketFd int) {
 // 	delete(e.socketsInterestList, socketFd)

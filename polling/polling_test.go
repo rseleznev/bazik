@@ -36,7 +36,7 @@ func TestAdd(t *testing.T) {
 		mu:              sync.Mutex{},
 		eventsBuf:       make([]syscall.EpollEvent, 5),
 		readyEvents:     make([]syscall.EpollEvent, 0, 5),
-		socketsInterestList: make(map[int]struct{}),
+		// socketsInterestList: make(map[int]struct{}),
 		socketsPolling:         make(map[int]map[string][]models.PollingUnit),
 		socketsUnexpErr: make(map[int]error),
 	}
