@@ -22,17 +22,19 @@
 |proxy_mode [string]|Режим проксирования|zero-copy|
 |main_timeout [int]|Время в миллисекундах, за которое должна выполняться операция|500|
 |retry_amount [int]|Количество попыток переподключиться к серверу при ошибке|0|
+||_общие настройки_||
 |max_clients_amount [int]|Максимальное кол-во клиентов|120|
 |max_idle_seconds [int]|Максимальное время бездействия соединения|300|
 |disable_pool_main_flag [bool]|Отключение пула серверных соединений у ВСЕХ серверов|false|
 |max_conns_pool_len [int]|Максимальные размеры пула соединений для каждого сервера|20|
 |initial_conns_pool_len [int]|Начальное количество соединений в пуле для каждого сервера|3|
-|(server) address [string]|Адрес сервера назначения|127.0.0.1:7000|
-|(server) max_clients_amount [int]|Аналогично общему параметру|70|
-|(server) max_idle_seconds [int]|Аналогично общему параметру|500|
-|(server) disable_conns_pool [bool]|Аналогично общему параметру|false|
-|(server) max_conns_pool_len [int]|Аналогично общему параметру|40|
-|(server) initial_conns_pool_len [int]|Аналогично общему параметру|10|
+||_настройки одного сервера_||
+|address [string]|Адрес сервера назначения|127.0.0.1:7000|
+|max_clients_amount [int]|Аналогично общему параметру|70|
+|max_idle_seconds [int]|Аналогично общему параметру|500|
+|disable_conns_pool [bool]|Аналогично общему параметру|false|
+|max_conns_pool_len [int]|Аналогично общему параметру|40|
+|initial_conns_pool_len [int]|Аналогично общему параметру|10|
 
 ### Режим проксирования (proxy_mode)
 
