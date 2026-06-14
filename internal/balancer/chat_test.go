@@ -22,6 +22,7 @@ func Test_tcpProxy(t *testing.T) {
 			name: "success fast",
 			expectedErr: nil,
 			client: mockConn{
+				getFdFunc: func() int {return 3},
 				logActivityFunc: func() {},
 				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
@@ -36,6 +37,7 @@ func Test_tcpProxy(t *testing.T) {
 				closeFunc: func() {},
 			},
 			server: mockConn{
+				getFdFunc: func() int {return 5},
 				logActivityFunc: func() {},
 				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
@@ -54,6 +56,7 @@ func Test_tcpProxy(t *testing.T) {
 			name: "success with client activity",
 			expectedErr: nil,
 			client: mockConn{
+				getFdFunc: func() int {return 3},
 				logActivityFunc: func() {},
 				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
@@ -74,6 +77,7 @@ func Test_tcpProxy(t *testing.T) {
 				closeFunc: func() {},
 			},
 			server: mockConn{
+				getFdFunc: func() int {return 5},
 				logActivityFunc: func() {},
 				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
@@ -95,6 +99,7 @@ func Test_tcpProxy(t *testing.T) {
 			name: "success with server activity",
 			expectedErr: nil,
 			client: mockConn{
+				getFdFunc: func() int {return 3},
 				logActivityFunc: func() {},
 				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
@@ -112,6 +117,7 @@ func Test_tcpProxy(t *testing.T) {
 				closeFunc: func() {},
 			},
 			server: mockConn{
+				getFdFunc: func() int {return 5},
 				logActivityFunc: func() {},
 				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
@@ -136,6 +142,7 @@ func Test_tcpProxy(t *testing.T) {
 			name: "fail ErrClientSide",
 			expectedErr: models.ErrClientSide,
 			client: mockConn{
+				getFdFunc: func() int {return 3},
 				logActivityFunc: func() {},
 				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
@@ -153,6 +160,7 @@ func Test_tcpProxy(t *testing.T) {
 				closeFunc: func() {},
 			},
 			server: mockConn{
+				getFdFunc: func() int {return 5},
 				logActivityFunc: func() {},
 				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
@@ -174,6 +182,7 @@ func Test_tcpProxy(t *testing.T) {
 			name: "fail serverSide",
 			expectedErr: models.ErrNoConnsAvailable,
 			client: mockConn{
+				getFdFunc: func() int {return 3},
 				logActivityFunc: func() {},
 				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
@@ -191,6 +200,7 @@ func Test_tcpProxy(t *testing.T) {
 				closeFunc: func() {},
 			},
 			server: mockConn{
+				getFdFunc: func() int {return 5},
 				logActivityFunc: func() {},
 				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
