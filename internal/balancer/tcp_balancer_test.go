@@ -97,6 +97,7 @@ func TestMain(m *testing.M) {
 	for i, v := range servers {
 		for range v.opts.InitialConnsPoolLen {
 			servers[i].connPool <- mockConn{
+				getFdFunc: func() int {return 5},
 				getRawAddrFunc: func() string {
 					return v.opts.Addr.Raw
 				},
@@ -144,6 +145,7 @@ func Test_link(t *testing.T) {
 		{
 			name: "success",
 			clientConn: mockConn{
+				getFdFunc: func() int {return 3},
 				getRawAddrFunc: func() string {
 					return "127.0.0.1:3000"
 				},
