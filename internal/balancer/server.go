@@ -115,7 +115,7 @@ func (s *server) closeConn(c models.Conn) {
 	s.activeConnectionsAmount.Add(-1)
 	if !s.opts.DisableConnsPool {
 		if len(s.connPool) < s.opts.MaxConnsPoolLen {
-			nC, err := s.newConn() // разобраться, почему возвращает ошибку
+			nC, err := s.newConn()
 			if err != nil {
 				slog.Warn("ошибка создания подключения к серверу", "module", "server", "serverAddr", s.opts.Addr.Raw, "err", err)
 				return
