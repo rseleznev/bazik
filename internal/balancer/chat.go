@@ -96,10 +96,10 @@ outer:
 		return models.ErrClientSide
 	}
 	if c.isServerErr() {
-		c.server.Close()
+		// c.server.Close()
 		return c.getServerErr()	
 	}
-	c.client.Close()
+	// c.client.Close()
 
 	return nil
 }
