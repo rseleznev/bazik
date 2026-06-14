@@ -157,6 +157,7 @@ func (b *TCPBalancer) process(c *chat) {
 		slog.Info("остановка чата по таймеру бездействия", "module", "tcp_balancer", "chatId", c.id)
 		break
 	}
+	c.client.Close()
 	b.deleteChat(c)
 	b.storeServerConn(c.server)
 }
