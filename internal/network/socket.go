@@ -249,6 +249,14 @@ func (s *socket) transfer(src, dst int) error {
 }
 
 func (s *socket) Close() {
+	s.poller.StopUnitPolling(models.PollingUnit{
+		SocketFd: s.GetFd(),
+		EventType: "income",
+	})
+	s.poller.StopUnitPolling(models.PollingUnit{
+		SocketFd: s.GetFd(),
+		EventType: "outcome",
+	})
 	s.sys.Close(s.GetFd())
 	if s.hasPipe() {
 		s.closePipe()
