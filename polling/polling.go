@@ -78,6 +78,7 @@ func (e *Epoll) Add(unit models.PollingUnit) error {
 	if !e.isSocketPolling(unit.SocketFd) {
 		err := e.addCommonEvent(unit.SocketFd)
 		if err != nil {
+			//игнорируем ошибку, когда fd уже в interest_list
 			if !errors.Is(err, syscall.EEXIST) {
 				return err
 			}
@@ -121,15 +122,19 @@ func (e *Epoll) wait() {
 		if n > 0 { // Пришли какие-то события
 			startTime = time.Now()
 			waitTypeIdentifier = 0
+			e.clearReadyEvents()
 			e.addReadyEvents(e.eventsBuf[:n])
-			go e.processEvents(n)
-		}
-		if n == e.pollingSocketsLen() || e.pollingSocketsLen() == 0 {
 			e.stopPolling()
+			go e.processEvents(n)
 			e.mu.Unlock()
-
 			break
 		}
+		// if n == e.pollingSocketsLen() || e.pollingSocketsLen() == 0 {
+		// 	e.stopPolling()
+		// 	e.mu.Unlock()
+
+		// 	break
+		// }
 		if time.Now().After(startTime.Add(time.Millisecond*50)) {
 			waitTypeIdentifier = -1
 		}
@@ -303,9 +308,9 @@ func (e *Epoll) stopPolling() {
 	e.polling = false
 }
 
-func (e *Epoll) pollingSocketsLen() int {
-	return len(e.socketsPolling)
-}
+// func (e *Epoll) pollingSocketsLen() int {
+// 	return len(e.socketsPolling)
+// }
 
 func (e *Epoll) addCommonEvent(socketFd int) error {
 	err := e.sys.Ctl(e.fd, syscall.EPOLL_CTL_ADD, socketFd, &syscall.EpollEvent{
