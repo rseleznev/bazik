@@ -226,7 +226,7 @@ func (e *Epoll) processEvents(readySocketsLen int) {
 		}
 		if e.socketEventsLen(s) > 0 {
 			if !e.isPolling() {
-				go e.wait()
+				go e.wait() // здесь может запуститься несколько потоков wait, т.к. проверяем один сокет
 			}
 		} else {
 			e.deleteSocketFromPolling(s)
