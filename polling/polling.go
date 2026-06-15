@@ -110,6 +110,7 @@ func (e *Epoll) wait() {
 	for {
 		n, err := e.sys.Wait(e.fd, e.eventsBuf, waitTypeIdentifier)
 		if err != nil {
+			// игнорируем сигнал прерывания
 			if errors.Is(err, syscall.EINTR) {
 				continue
 			}
