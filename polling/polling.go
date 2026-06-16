@@ -92,7 +92,7 @@ func (e *Epoll) Add(unit models.PollingUnit) error {
 
 // poll делает системный вызов epoll_wait и обрабатывает полученные события
 //
-// Крутится, пока не получит события по всем ждущим сокетам
+// Крутится, пока счетчик ожидателей не опустится до 0
 func (e *Epoll) poll() {
 	e.startPolling()
 	defer e.stopPolling()
@@ -107,8 +107,8 @@ wait:
 				continue
 			}
 			e.setError(err)
-			go e.pushError()
-			break
+			e.pushError()
+			return
 		}
 		if n > 0 {
 			e.addReadyEvents(e.eventsBuf[:n])
