@@ -213,7 +213,8 @@ func (e *Epoll) stopPolling() {
 func (e *Epoll) StopUnitPolling(unit models.PollingUnit) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	
+	n := int32(len(e.socketsPolling[unit.SocketFd][unit.EventType]))
+	e.waitersCounter.Add(-n)
 	e.deleteSocketEvent(unit.SocketFd, unit.EventType) // работает только при одном ждущем юните
 	if e.socketEventsLen(unit.SocketFd) == 0 {
 		e.deleteSocketFromPolling(unit.SocketFd)
