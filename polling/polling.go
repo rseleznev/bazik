@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -20,6 +21,8 @@ const (
 type Epoll struct {
 	// файловый дескриптор инстанса epoll
 	fd int
+	// счетчик ждущих потоков
+	waitersCounter atomic.Int32
 
 	mu sync.RWMutex
 	err error
@@ -85,23 +88,19 @@ func (e *Epoll) Add(unit models.PollingUnit) error {
 	e.addSocketUnit(unit)
 
 	if !e.isPolling() {
-		go e.wait()
+		go e.poll()
 	}
 
 	return nil
 }
 
-// wait делает системный вызов epoll_wait с нулевым таймаутом
+// wait делает системный вызов epoll_wait
 //
 // Крутится, пока не получит события по всем ждущим сокетам
-func (e *Epoll) wait() {
-	e.mu.Lock()
-	if e.isPolling() {
-		e.mu.Unlock()
-		return
-	}
+func (e *Epoll) poll() {
 	e.startPolling()
-	e.mu.Unlock()
+	defer e.stopPolling()
+wait:
 	startTime := time.Now()
 	waitTypeIdentifier := 0
 	for {
@@ -113,31 +112,21 @@ func (e *Epoll) wait() {
 			}
 			e.setError(err)
 			go e.pushError()
-
 			break
 		}
-		e.mu.Lock()
-		if n > 0 { // Пришли какие-то события
-			startTime = time.Now()
-			waitTypeIdentifier = 0
-			e.clearReadyEvents()
+		if n > 0 {
 			e.addReadyEvents(e.eventsBuf[:n])
-			e.stopPolling()
-			go e.processEvents(n)
-			e.mu.Unlock()
+			e.processEvents(n)
 			break
 		}
-		// if n == e.pollingSocketsLen() || e.pollingSocketsLen() == 0 {
-		// 	e.stopPolling()
-		// 	e.mu.Unlock()
-
-		// 	break
-		// }
 		if time.Now().After(startTime.Add(time.Millisecond*50)) {
 			waitTypeIdentifier = -1
 		}
-		e.mu.Unlock()
 		runtime.Gosched()
+	}
+
+	if e.waitersCounter.Load() > 0 {
+		goto wait
 	}
 }
 
@@ -223,7 +212,7 @@ func (e *Epoll) processEvents(readySocketsLen int) {
 		}
 		if e.socketEventsLen(s) > 0 {
 			if !e.isPolling() {
-				go e.wait() // здесь может запуститься несколько потоков wait, т.к. проверяем один сокет
+				go e.poll() // здесь может запуститься несколько потоков wait, т.к. проверяем один сокет
 			}
 		} else {
 			e.deleteSocketFromPolling(s)
@@ -236,6 +225,18 @@ func (e *Epoll) isPolling() bool {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	return e.polling
+}
+
+func (e *Epoll) startPolling() {
+	e.mu.Lock()
+	e.polling = true
+	e.mu.Unlock()
+}
+
+func (e *Epoll) stopPolling() {
+	e.mu.Lock()
+	e.polling = false
+	e.mu.Unlock()
 }
 
 func (e *Epoll) StopUnitPolling(unit models.PollingUnit) {
@@ -266,7 +267,6 @@ func (e *Epoll) GetError() error {
 // pushError информирует все ждущие потоки о глобальной ошибке epoll
 func (e *Epoll) pushError() {
 	e.mu.Lock()
-
 	defer e.mu.Unlock()
 
 	err := e.GetError()
@@ -334,14 +334,6 @@ func (e *Epoll) deleteSocketEvent(socketFd int, eventType string) {
 
 func (e *Epoll) deleteSocketFromPolling(socketFd int) {
 	delete(e.socketsPolling, socketFd)
-}
-
-func (e *Epoll) startPolling() {
-	e.polling = true
-}
-
-func (e *Epoll) stopPolling() {
-	e.polling = false
 }
 
 // func (e *Epoll) pollingSocketsLen() int {
