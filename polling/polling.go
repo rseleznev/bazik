@@ -21,7 +21,7 @@ type Epoll struct {
 	// файловый дескриптор инстанса epoll
 	fd int
 
-	mu sync.Mutex
+	mu sync.RWMutex
 	err error
 
 	// флаг, запущен ли поллинг
@@ -53,7 +53,7 @@ func NewEpoll() (*Epoll, error) {
 
 	return &Epoll{
 		fd: eFd,
-		mu: sync.Mutex{},
+		mu: sync.RWMutex{},
 		eventsBuf: make([]syscall.EpollEvent, 5),
 		readyEvents: make([]syscall.EpollEvent, 0, 5),
 		// socketsInterestList: make(map[int]struct{}),
@@ -65,9 +65,6 @@ func NewEpoll() (*Epoll, error) {
 
 // Add добавляет событие (юнит), которое нужно поллить
 func (e *Epoll) Add(unit models.PollingUnit) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
 	if err := e.getSocketUnexpErr(unit.SocketFd); err != nil {
 		e.deleteSocketUnexpErr(unit.SocketFd)
 		return err
@@ -235,6 +232,12 @@ func (e *Epoll) processEvents(readySocketsLen int) {
 	e.clearReadyEvents() // удаляем завершенные события
 }
 
+func (e *Epoll) isPolling() bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.polling
+}
+
 func (e *Epoll) StopUnitPolling(unit models.PollingUnit) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -273,6 +276,50 @@ func (e *Epoll) pushError() {
 	}
 }
 
+func (e *Epoll) getSocketUnexpErr(socketFd int) error {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.socketsUnexpErr[socketFd]
+}
+
+func (e *Epoll) deleteSocketUnexpErr(socketFd int) {
+	e.mu.Lock()
+	delete(e.socketsUnexpErr, socketFd)
+	e.mu.Unlock()
+}
+
+func (e *Epoll) isSocketPolling(socketFd int) bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	_, ok := e.socketsPolling[socketFd]
+	return ok
+}
+
+func (e *Epoll) addSocketUnit(unit models.PollingUnit) {
+	e.mu.Lock()
+	if e.socketsPolling[unit.SocketFd] == nil {
+		e.socketsPolling[unit.SocketFd] = make(map[string][]models.PollingUnit, 2)
+		e.socketsPolling[unit.SocketFd][unit.EventType] = make([]models.PollingUnit, 0, 2)
+	}
+	e.socketsPolling[unit.SocketFd][unit.EventType] = append(e.socketsPolling[unit.SocketFd][unit.EventType], unit)
+	e.mu.Unlock()
+}
+
+func (e *Epoll) checkEventType(eventType string) bool {
+	var ok bool
+
+	if eventType == "connect" {
+		ok = true
+	}
+	if eventType == "income" {
+		ok = true
+	}
+	if eventType == "outcome" {
+		ok = true
+	}
+	return ok
+}
+
 
 // ------------------------------------------------
 // Методы, которые должны вызываться только под захваченным мьютексом
@@ -281,24 +328,12 @@ func (e *Epoll) socketEventsLen(socketFd int) int {
 	return len(e.socketsPolling[socketFd])
 }
 
-func (e *Epoll) addSocketUnit(unit models.PollingUnit) {
-	if e.socketsPolling[unit.SocketFd] == nil {
-		e.socketsPolling[unit.SocketFd] = make(map[string][]models.PollingUnit, 2)
-		e.socketsPolling[unit.SocketFd][unit.EventType] = make([]models.PollingUnit, 0, 2)
-	}
-	e.socketsPolling[unit.SocketFd][unit.EventType] = append(e.socketsPolling[unit.SocketFd][unit.EventType], unit)
-}
-
 func (e *Epoll) deleteSocketEvent(socketFd int, eventType string) {
 	delete(e.socketsPolling[socketFd], eventType)
 }
 
 func (e *Epoll) deleteSocketFromPolling(socketFd int) {
 	delete(e.socketsPolling, socketFd)
-}
-
-func (e *Epoll) isPolling() bool {
-	return e.polling
 }
 
 func (e *Epoll) startPolling() {
@@ -334,11 +369,6 @@ func (e *Epoll) addCommonEvent(socketFd int) error {
 // 	return nil
 // }
 
-func (e *Epoll) isSocketPolling(socketFd int) bool {
-	_, ok := e.socketsPolling[socketFd]
-	return ok
-}
-
 // func (e *Epoll) addedInInterestList(socketFd int) {
 // 	e.socketsInterestList[socketFd] = struct{}{}
 // }
@@ -346,21 +376,6 @@ func (e *Epoll) isSocketPolling(socketFd int) bool {
 // func (e *Epoll) deletedFromInterestList(socketFd int) {
 // 	delete(e.socketsInterestList, socketFd)
 // }
-
-func (e *Epoll) checkEventType(eventType string) bool {
-	var ok bool
-
-	if eventType == "connect" {
-		ok = true
-	}
-	if eventType == "income" {
-		ok = true
-	}
-	if eventType == "outcome" {
-		ok = true
-	}
-	return ok
-}
 
 func (e *Epoll) sendResultToUnits(socketFd int, err error)  {
 	for _, units := range e.socketsPolling[socketFd] {
@@ -392,12 +407,4 @@ func (e *Epoll) clearReadyEvents() {
 
 func (e *Epoll) setSocketUnexpErr(socketFd int, err error) {
 	e.socketsUnexpErr[socketFd] = err
-}
-
-func (e *Epoll) getSocketUnexpErr(socketFd int) error {
-	return e.socketsUnexpErr[socketFd]
-}
-
-func (e *Epoll) deleteSocketUnexpErr(socketFd int) {
-	delete(e.socketsUnexpErr, socketFd)
 }
