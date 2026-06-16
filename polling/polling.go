@@ -95,7 +95,7 @@ func (e *Epoll) poll() {
 wait:
 	startTime := time.Now()
 	waitTypeIdentifier := 0
-	for {
+	for e.socketsPollingLen() > 0 {
 		n, err := e.sys.Wait(e.fd, e.eventsBuf, waitTypeIdentifier)
 		if err != nil {
 			// игнорируем сигнал прерывания
@@ -213,12 +213,20 @@ func (e *Epoll) stopPolling() {
 func (e *Epoll) StopUnitPolling(unit models.PollingUnit) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	n := int32(len(e.socketsPolling[unit.SocketFd][unit.EventType]))
-	e.waitersCounter.Add(-n)
-	e.deleteSocketEvent(unit.SocketFd, unit.EventType) // работает только при одном ждущем юните
+	eventsLen := len(e.socketsPolling[unit.SocketFd][unit.EventType])
+	if eventsLen != 0 {
+		e.waitersCounter.Add(-int32(eventsLen))
+		e.deleteSocketEvent(unit.SocketFd, unit.EventType) // работает только при одном ждущем юните
+	}
 	if e.socketEventsLen(unit.SocketFd) == 0 {
 		e.deleteSocketFromPolling(unit.SocketFd)
 	}
+}
+
+func (e *Epoll) socketsPollingLen() int {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return len(e.socketsPolling)
 }
 
 func (e *Epoll) setError(err error) {
