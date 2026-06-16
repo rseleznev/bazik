@@ -33,7 +33,7 @@ func (ms *mockSyscalls) Ctl(eFd, o, sFd int, event *syscall.EpollEvent) error {
 func TestAdd(t *testing.T) {
 	testPoller := &Epoll{
 		fd:              2,
-		mu:              sync.Mutex{},
+		mu:              sync.RWMutex{},
 		eventsBuf:       make([]syscall.EpollEvent, 5),
 		readyEvents:     make([]syscall.EpollEvent, 0, 5),
 		// socketsInterestList: make(map[int]struct{}),
@@ -219,10 +219,10 @@ func TestAdd(t *testing.T) {
 	}
 }
 
-func Test_wait(t *testing.T) {
+func Test_poll(t *testing.T) {
 	testPoller := &Epoll{
 		fd: 2,
-		mu: sync.Mutex{},
+		mu: sync.RWMutex{},
 		eventsBuf: make([]syscall.EpollEvent, 5),
 		readyEvents: make([]syscall.EpollEvent, 0, 5),
 		socketsPolling: make(map[int]map[string][]models.PollingUnit),
@@ -237,7 +237,7 @@ func Test_wait(t *testing.T) {
 		mockSys mockSyscalls
 	}{
 		{
-			name: "success",
+			name: "success outcome",
 			expectedChanErr: nil,
 			eventForPolling: models.PollingUnit{
 				SocketFd: 1,
@@ -248,6 +248,30 @@ func Test_wait(t *testing.T) {
 				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
 					testPoller.eventsBuf[0] = syscall.EpollEvent{
 						Events: syscall.EPOLLOUT,
+						Fd: 1,
+					}
+					return 1, nil
+				},
+				getSocketOptFunc: func(_, _, _ int) (int, error) {
+					return 0, nil
+				},
+				ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
+					return nil
+				},
+			},
+		},
+		{
+			name: "success income",
+			expectedChanErr: nil,
+			eventForPolling: models.PollingUnit{
+				SocketFd: 1,
+				EventType: "income",
+				ResultChan: make(chan error),
+			},
+			mockSys: mockSyscalls{
+				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
+					testPoller.eventsBuf[0] = syscall.EpollEvent{
+						Events: syscall.EPOLLIN,
 						Fd: 1,
 					}
 					return 1, nil
@@ -284,16 +308,18 @@ func Test_wait(t *testing.T) {
 
 	for _, tt := range testData {
 		t.Run(tt.name, func(t *testing.T) {
-			testPoller.mu.Lock()
 			testPoller.sys = &tt.mockSys
 			testPoller.addSocketUnit(tt.eventForPolling)
-			testPoller.mu.Unlock()
 
-			testPoller.wait()
+			wg := sync.WaitGroup{}
+			wg.Go(func() {
+				testPoller.poll()
+			})
 			err := <-tt.eventForPolling.ResultChan
 			if err != tt.expectedChanErr {
 				t.Errorf("Ожидаемая ошибка %s, получено %s", tt.expectedChanErr, err)
 			}
+			wg.Wait()
 		})
 	}
 }
@@ -301,7 +327,7 @@ func Test_wait(t *testing.T) {
 func Test_processEvents(t *testing.T) {
 	testPoller := &Epoll{
 		fd: 2,
-		mu: sync.Mutex{},
+		mu: sync.RWMutex{},
 		eventsBuf: make([]syscall.EpollEvent, 5),
 		readyEvents: make([]syscall.EpollEvent, 0, 5),
 		socketsPolling: make(map[int]map[string][]models.PollingUnit),
@@ -332,14 +358,8 @@ func Test_processEvents(t *testing.T) {
 				},
 			},
 			mockSys: mockSyscalls{
-				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
-					return 1, nil
-				},
 				getSocketOptFunc: func(_, _, _ int) (int, error) {
 					return 0, nil
-				},
-				ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
-					return nil
 				},
 			},
 		},
@@ -359,14 +379,8 @@ func Test_processEvents(t *testing.T) {
 				},
 			},
 			mockSys: mockSyscalls{
-				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
-					return 1, nil
-				},
 				getSocketOptFunc: func(_, _, _ int) (int, error) {
 					return 0, nil
-				},
-				ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
-					return nil
 				},
 			},
 		},
@@ -413,14 +427,8 @@ func Test_processEvents(t *testing.T) {
 				},
 			},
 			mockSys: mockSyscalls{
-				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
-					return 1, nil
-				},
 				getSocketOptFunc: func(_, _, _ int) (int, error) {
 					return 0, models.ErrWrongProto
-				},
-				ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
-					return nil
 				},
 			},
 		},
@@ -440,14 +448,8 @@ func Test_processEvents(t *testing.T) {
 				},
 			},
 			mockSys: mockSyscalls{
-				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
-					return 1, nil
-				},
 				getSocketOptFunc: func(_, _, _ int) (int, error) {
 					return 0, nil
-				},
-				ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
-					return nil
 				},
 			},
 		},
@@ -467,14 +469,8 @@ func Test_processEvents(t *testing.T) {
 				},
 			},
 			mockSys: mockSyscalls{
-				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
-					return 1, nil
-				},
 				getSocketOptFunc: func(_, _, _ int) (int, error) {
 					return 0, nil
-				},
-				ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
-					return nil
 				},
 			},
 		},
@@ -494,14 +490,8 @@ func Test_processEvents(t *testing.T) {
 				},
 			},
 			mockSys: mockSyscalls{
-				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
-					return 1, nil
-				},
 				getSocketOptFunc: func(_, _, _ int) (int, error) {
 					return 0, nil
-				},
-				ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
-					return nil
 				},
 			},
 		},
@@ -521,14 +511,8 @@ func Test_processEvents(t *testing.T) {
 				},
 			},
 			mockSys: mockSyscalls{
-				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
-					return 1, nil
-				},
 				getSocketOptFunc: func(_, _, _ int) (int, error) {
 					return 0, nil
-				},
-				ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
-					return nil
 				},
 			},
 		},
@@ -536,13 +520,14 @@ func Test_processEvents(t *testing.T) {
 
 	for _, tt := range testData {
 		t.Run(tt.name, func(t *testing.T) {
-			testPoller.mu.Lock()
 			testPoller.sys = &tt.mockSys
-			testPoller.addSocketUnit(tt.eventForPolling)
 			testPoller.addReadyEvents(tt.readyEvents)
-			testPoller.mu.Unlock()
+			testPoller.addSocketUnit(tt.eventForPolling)
 
-			go testPoller.processEvents(1)
+			wg := sync.WaitGroup{}
+			wg.Go(func() {
+				testPoller.processEvents(1)
+			})
 
 			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second*1)
 
@@ -562,6 +547,7 @@ func Test_processEvents(t *testing.T) {
 			if err != tt.expectedPollerErr {
 				t.Errorf("Ожидаемая ошибка %s, получено %s", tt.expectedPollerErr, err)
 			}
+			wg.Wait()
 		})
 	}
 }
