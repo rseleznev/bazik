@@ -82,10 +82,7 @@ func (e *Epoll) Add(unit models.PollingUnit) error {
 		}
 	}
 	e.addSocketUnit(unit)
-
-	if !e.isPolling() {
-		go e.poll()
-	}
+	e.initPoll()
 
 	return nil
 }
@@ -94,7 +91,6 @@ func (e *Epoll) Add(unit models.PollingUnit) error {
 //
 // Крутится, пока счетчик ожидателей не опустится до 0
 func (e *Epoll) poll() {
-	e.startPolling()
 	defer e.stopPolling()
 wait:
 	startTime := time.Now()
@@ -199,15 +195,12 @@ func (e *Epoll) processEvents(readySocketsLen int) {
 	e.clearReadyEvents() // удаляем завершенные события
 }
 
-func (e *Epoll) isPolling() bool {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	return e.polling
-}
-
-func (e *Epoll) startPolling() {
+func (e *Epoll) initPoll() {
 	e.mu.Lock()
-	e.polling = true
+	if !e.isPolling() {
+		e.startPolling()
+		go e.poll()
+	}
 	e.mu.Unlock()
 }
 
@@ -329,6 +322,14 @@ func (e *Epoll) checkEventType(eventType string) bool {
 
 // ------------------------------------------------
 // Методы, которые должны вызываться только под захваченным мьютексом
+
+func (e *Epoll) isPolling() bool {
+	return e.polling
+}
+
+func (e *Epoll) startPolling() {
+	e.polling = true
+}
 
 func (e *Epoll) socketEventsLen(socketFd int) int {
 	return len(e.socketsPolling[socketFd])
