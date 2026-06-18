@@ -120,21 +120,20 @@ func (s *socket) poll(eventType string) error {
 		return err
 	}
 	timer := time.NewTimer(s.getIdleTimeout())
+	defer timer.Stop()
 
-	for {
-		select {
-		case err = <-pUnit.ResultChan:
-			if err != nil {
-				return err
-			}
-			return nil
-
-		case <-timer.C:
-			s.poller.StopUnitPolling(pUnit)
-
-			return models.ErrPollTimeout
-
+	select {
+	case err = <-pUnit.ResultChan:
+		if err != nil {
+			return err
 		}
+		return nil
+
+	case <-timer.C:
+		s.poller.StopUnitPolling(pUnit)
+
+		return models.ErrPollTimeout
+
 	}
 }
 
@@ -150,20 +149,20 @@ func (s *socket) pollFdWithTimeout(fd int, t time.Duration, eventType string) er
 	}
 
 	timer := time.NewTimer(t)
-	for {
-		select {
-		case err = <-pUnit.ResultChan:
-			if err != nil {
-				return err
-			}
-			return nil
-
-		case <-timer.C:
-			s.poller.StopUnitPolling(pUnit)
-
-			return models.ErrPollTimeout
-
+	defer timer.Stop()
+	
+	select {
+	case err = <-pUnit.ResultChan:
+		if err != nil {
+			return err
 		}
+		return nil
+
+	case <-timer.C:
+		s.poller.StopUnitPolling(pUnit)
+
+		return models.ErrPollTimeout
+
 	}
 }
 
