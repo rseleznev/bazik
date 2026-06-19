@@ -78,7 +78,8 @@ func (b *TCPBalancer) link(c models.Conn) {
 
 	chat := &chat{
 		id: id,
-		mu: sync.RWMutex{},
+		clientMu: sync.Mutex{},
+		serverMu: sync.Mutex{},
 		mainTimeout: b.getMainTimeout(),
 		idleTimeout: server.getIdleTimeout(),
 		ctlChan: make(chan struct{}),
@@ -147,7 +148,7 @@ func (b *TCPBalancer) process(c *chat) {
 				continue
 			}
 			// если ретраи не разрешены, закрываем соединение с клиентом
-			c.close()
+			// c.close()
 			b.deleteChat(c)
 			slog.Info("остановка чата без ретраев", "module", "tcp_balancer", "chatId", c.id)
 			return

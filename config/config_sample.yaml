@@ -1,4 +1,4 @@
-ip: "127.0.0.1" #"192.168.0.50"
+ip: "127.0.0.1" #"172.17.0.3" #"192.168.0.50"
 port: 5000
 proto: tcp
 balancing_alg: random
@@ -6,11 +6,11 @@ proxy_mode: zero-copy
 main_timeout: 500
 retry_amount: 0
 max_clients_amount: 5
-max_idle_seconds: 300
+max_idle_seconds: 120
 servers:
-  - address: "80.78.247.133:6379"
+  - address: "127.0.0.1:6379" #"172.17.0.2:6379"
     max_conns_pool_len: 10
-    initial_conns_pool_len: 3
+    initial_conns_pool_len: 1
 
 # # Несколько балансировщиков
 # ports:

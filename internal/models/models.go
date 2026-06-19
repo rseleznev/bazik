@@ -52,14 +52,14 @@ type Listener interface {
 
 type Conn interface {
 	Connect() error
-	Close()
-	GetFd() int
+	WithCancel(cancelChan chan struct{})
+	DropCancel()
+	Readable() <-chan error
 	CopyTo(Conn) error
-	SetIdleTimeout(time.Duration)
-	SetMainTimeout(time.Duration)
-	LogActivity()
-	LastActivity() <-chan time.Time
+	Close()
 	GetRawAddr() string
 	CheckUnread() (int, error)
 	CheckUnsent() (int, error)
+	GetFd() int
+	SetTimeout(time.Duration)
 }

@@ -24,34 +24,34 @@ func (m mockNetworker) NewTCPConn(a models.Address) (models.Conn, error) {
 
 type mockConn struct {
 	connectFunc func() error
-	closeFunc func()
-	getFdFunc func() int
+	withCancelFunc func(cancelChan chan struct{})
+	dropCancelFunc func()
+	readableFunc func() <-chan error
 	copyToFunc func(models.Conn) error
-	setIdleTimeoutFunc func(time.Duration)
-	setMainTimeoutFunc func(t time.Duration)
-	logActivityFunc func()
-	lastActivityFunc func() <-chan time.Time
+	closeFunc func()
 	getRawAddrFunc func() string
 	checkUnreadFunc func() (int, error)
 	checkUnsentFunc func() (int, error)
+	getFdFunc func() int
+	setTimeoutFunc func(time.Duration)
 }
 func (m mockConn) Connect() error {
 	return m.connectFunc()
 }
+func (m mockConn) WithCancel(c chan struct{}) {
+	m.withCancelFunc(c)
+}
+func (m mockConn) DropCancel() {
+	m.dropCancelFunc()
+}
+func (m mockConn) Readable() <-chan error {
+	return m.readableFunc()
+}
+func (m mockConn) CopyTo(c models.Conn) error {
+	return m.copyToFunc(c)
+}
 func (m mockConn) Close() {
 	m.closeFunc()
-}
-func (m mockConn) GetFd() int {
-	return m.getFdFunc()
-}
-func (m mockConn) CopyTo(dst models.Conn) error {
-	return m.copyToFunc(dst)
-}
-func (m mockConn) SetIdleTimeout(time.Duration) {}
-func (m mockConn) SetMainTimeout(t time.Duration) {}
-func (m mockConn) LogActivity() {}
-func (m mockConn) LastActivity() <-chan time.Time {
-	return m.lastActivityFunc()
 }
 func (m mockConn) GetRawAddr() string {
 	return m.getRawAddrFunc()
@@ -61,6 +61,12 @@ func (m mockConn) CheckUnread() (int, error) {
 }
 func (m mockConn) CheckUnsent() (int, error) {
 	return m.checkUnsentFunc()
+}
+func (m mockConn) GetFd() int {
+	return m.getFdFunc()
+}
+func (m mockConn) SetTimeout(t time.Duration) {
+	m.setTimeoutFunc(t)
 }
 
 
@@ -104,13 +110,6 @@ func TestMain(m *testing.M) {
 				copyToFunc: func(_ models.Conn) error {
 					return models.ErrIdleTimeout
 				},
-				lastActivityFunc: func() <-chan time.Time {
-					ch := make(chan time.Time)
-					go func () {
-						ch <- time.Now()
-					}()
-					return ch
-				},
 				checkUnreadFunc: func() (int, error) {
 					return 0, nil
 				},
@@ -151,13 +150,6 @@ func Test_link(t *testing.T) {
 				},
 				copyToFunc: func(_ models.Conn) error {
 					return models.ErrIdleTimeout
-				},
-				lastActivityFunc: func() <-chan time.Time {
-					ch := make(chan time.Time)
-					go func () {
-						ch <- time.Now()
-					}()
-					return ch
 				},
 				closeFunc: func() {},
 			},

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"log/slog"
 	"strconv"
-	"sync"
 	"syscall"
 	"time"
 
@@ -13,13 +12,10 @@ import (
 
 type socket struct {
 	fd int
-	mu sync.RWMutex
 	addr models.Address
-	mainTimeout time.Duration
-	idleTimeout time.Duration
-
-	logActivity bool
-	logActivityChan chan time.Time
+	timeout time.Duration
+	
+	cancelChan chan struct{}
 
 	pipeWriteFd int
 	pipeReadFd int
@@ -48,7 +44,7 @@ func (s *socket) Accept() (models.Conn, error) {
 		sFd, a, err = s.sys.Accept(s.GetFd())
 		if err != nil {
 			if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EWOULDBLOCK) {
-				err := s.pollWithoutTimeout("income")
+				err := s.poll("income")
 				if err != nil {
 					slog.Error("ошибка слушающего сокета", "module", "socket", "addr", s.addr.Raw, "err", err)
 					return nil, err
@@ -70,7 +66,6 @@ func (s *socket) Accept() (models.Conn, error) {
 
 	return &socket{
 		fd: sFd,
-		mu: sync.RWMutex{},
 		addr: models.Address{
 			IP: addr.Addr,
 			Port: addr.Port,
@@ -119,8 +114,6 @@ func (s *socket) poll(eventType string) error {
 	if err != nil {
 		return err
 	}
-	timer := time.NewTimer(s.getIdleTimeout())
-	defer timer.Stop()
 
 	select {
 	case err = <-pUnit.ResultChan:
@@ -129,10 +122,10 @@ func (s *socket) poll(eventType string) error {
 		}
 		return nil
 
-	case <-timer.C:
+	case <-s.cancelChan:
 		s.poller.StopUnitPolling(pUnit)
 
-		return models.ErrPollTimeout
+		return models.ErrPollCancelled
 
 	}
 }
@@ -147,7 +140,6 @@ func (s *socket) pollFdWithTimeout(fd int, t time.Duration, eventType string) er
 	if err != nil {
 		return err
 	}
-
 	timer := time.NewTimer(t)
 	defer timer.Stop()
 	
@@ -166,22 +158,18 @@ func (s *socket) pollFdWithTimeout(fd int, t time.Duration, eventType string) er
 	}
 }
 
-func (s *socket) pollWithoutTimeout(eventType string) error {
-	pUnit := models.PollingUnit{
-		SocketFd: s.GetFd(),
-		EventType: eventType,
-		ResultChan: make(chan error),
-	}
-	err := s.poller.Add(pUnit)
-	if err != nil {
-		return err
-	}
+func (s *socket) WithCancel(cancelChan chan struct{}) {
+	s.cancelChan = cancelChan
+}
 
-	err = <-pUnit.ResultChan
-	if err != nil {
-		return err
-	}
-	return nil
+func (s *socket) DropCancel() {
+	s.cancelChan = nil
+}
+
+func (s *socket) Readable() <-chan error {
+	ch := make(chan error, 1)
+	ch <- s.poll("income")
+	return ch
 }
 
 func (s *socket) CopyTo(dst models.Conn) error {
@@ -194,23 +182,8 @@ func (s *socket) CopyTo(dst models.Conn) error {
 			return err
 		}
 	}
-	
-	err := s.poll("income")
-	if err != nil {
-		if err == models.ErrPollTimeout {
-			return models.ErrIdleTimeout
-		}
-		if s.isLogActivity() {
-			s.updateLastActivity()
-		}
-		
-		return err
-	}
-	if s.isLogActivity() {
-		s.updateLastActivity()
-	}
 
-	err = s.transfer(s.GetFd(), s.getPipeWriteFd())
+	err := s.transfer(s.GetFd(), s.getPipeWriteFd())
 	if err != nil {
 		return err
 	}
@@ -262,31 +235,6 @@ func (s *socket) Close() {
 	}
 }
 
-func (s *socket) LogActivity() {
-	s.logActivity = true
-	s.logActivityChan = make(chan time.Time)
-}
-
-func (s *socket) LastActivity() <-chan time.Time {
-	return s.logActivityChan
-}
-
-func (s *socket) SetIdleTimeout(t time.Duration) {
-	s.mu.Lock()
-	s.idleTimeout = t
-	s.mu.Unlock()
-}
-
-func (s *socket) getIdleTimeout() time.Duration {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.idleTimeout
-}
-
-func (s *socket) updateLastActivity() {
-	s.logActivityChan <- time.Now()
-}
-
 func (s *socket) GetRawAddr() string {
 	return s.addr.Raw
 }
@@ -303,12 +251,12 @@ func (s *socket) GetFd() int {
 	return s.fd
 }
 
-func (s *socket) SetMainTimeout(t time.Duration) {
-	s.mainTimeout = t
+func (s *socket) SetTimeout(t time.Duration) {
+	s.timeout = t
 }
 
 func (s *socket) getTimeout() time.Duration {
-	return s.mainTimeout
+	return s.timeout
 }
 
 func (s *socket) getPipeWriteFd() int {
@@ -317,10 +265,6 @@ func (s *socket) getPipeWriteFd() int {
 
 func (s *socket) getPipeReadFd() int {
 	return s.pipeReadFd
-}
-
-func (s *socket) isLogActivity() bool {
-	return s.logActivity
 }
 
 func (s *socket) hasPipe() bool {

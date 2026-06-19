@@ -10,33 +10,20 @@ import (
 
 type chat struct {
 	id string
-	mu sync.RWMutex
-	stopped bool
 	mainTimeout time.Duration
 	idleTimeout time.Duration
 	lastActivity time.Time
 	ctlChan chan struct{}
 
 	client models.Conn
-	server models.Conn
-
+	clientMu sync.Mutex
+	clientCancelChan chan struct{}
 	clientErr error
+
+	server models.Conn
+	serverMu sync.Mutex
+	serverCancelChan chan struct{}
 	serverErr error
-}
-
-func (c *chat) isStopped() bool {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.stopped
-}
-
-func (c *chat) stop() {
-	c.mu.Lock()
-	if !c.stopped {
-		c.stopped = true
-		close(c.ctlChan)
-	}
-	c.mu.Unlock()
 }
 
 // tcpProxy проксирует TCP-трафик в режиме zero-copy
@@ -44,85 +31,104 @@ func (c *chat) tcpProxy() error {
 	slog.Info("проксирование чата", "module", "chat", "chatId", c.id)
 	defer slog.Info("проксирование чата завершено", "module", "chat", "chatId", c.id)
 	c.setup()
-
-	go func() {
-		for !c.isStopped() {
-			err := c.client.CopyTo(c.server)
-			if err != nil {
-				if err == models.ErrIdleTimeout {
-					c.stop()
-					return
-				}
-				c.setClientErr(err)
-				slog.Warn("ошибка на клиентской стороне", "module", "chat", "err", err)
-				c.stop()
-				return
-			}
-		}
-	}()
-
-	go func() {
-		for !c.isStopped() {
-			err := c.server.CopyTo(c.client)
-			if err != nil {
-				if err == models.ErrIdleTimeout {
-					c.stop()
-					return
-				}
-				c.setServerErr(err)
-				slog.Warn("ошибка на серверной стороне", "module", "chat", "err", err)
-				c.stop()
-				return
-			}
-		}
-	}()
-
-outer:
+	
+	timer := time.NewTimer(c.getIdleTimeout())
 	for {
 		select {
-		case clientLastActivity := <-c.client.LastActivity():
-			c.setLastActivity(clientLastActivity)
+		case err := <-c.client.Readable():
+			timer.Reset(c.getIdleTimeout())
+			if err != nil {
+				c.setClientErr(err)
+				c.cancel()
+				return c.handleError()
+			}
+			go c.copyFromClientToServer()
 			continue
 
-		case serverLastActivity := <-c.server.LastActivity():
-			c.setLastActivity(serverLastActivity)
+		case err := <-c.server.Readable():
+			timer.Reset(c.getIdleTimeout())
+			if err != nil {
+				c.setServerErr(err)
+				c.cancel()
+				return c.handleError()
+			}
+			go c.copyFromServerToClient()
 			continue
 
 		case <-c.ctlChan:
-			break outer
+			c.cancel()
+			return c.handleError()
+
+		case <-timer.C:
+			c.cancel()
+			return nil
 		}
 	}
+}
+
+func (c *chat) copyFromClientToServer() {
+	c.clientMu.Lock()
+	defer c.clientMu.Unlock()
+	defer func ()  {
+		// рекавер на случай двойного закрытия ctlChan
+		if r := recover(); r != nil {
+			return
+		}
+	}()
+	err := c.client.CopyTo(c.server)
+	if err != nil {
+		c.setClientErr(err)
+		close(c.ctlChan)
+	}
+	
+}
+
+func (c *chat) copyFromServerToClient() {
+	c.serverMu.Lock()
+	defer c.serverMu.Unlock()
+	defer func ()  {
+		// рекавер на случай двойного закрытия ctlChan
+		if r := recover(); r != nil {
+			return
+		}
+	}()
+	err := c.server.CopyTo(c.client)
+	if err != nil {
+		c.setServerErr(err)
+		close(c.ctlChan)
+	}
+	
+}
+
+func (c *chat) setup() {
+	now := time.Now()
+	c.setLastActivity(now)
+
+	c.client.SetTimeout(c.getMainTimeout())
+	clientCancelChan := make(chan struct{})
+	c.client.WithCancel(clientCancelChan)
+	c.clientCancelChan = clientCancelChan
+
+	c.server.SetTimeout(c.getMainTimeout())
+	serverCancelChan := make(chan struct{})
+	c.server.WithCancel(serverCancelChan)
+	c.serverCancelChan = serverCancelChan
+}
+
+func (c *chat) handleError() error {
 	if c.isClientErr() {
 		return models.ErrClientSide
 	}
 	if c.isServerErr() {
-		// c.server.Close()
-		return c.getServerErr()	
+		return c.getServerErr()
 	}
-	// c.client.Close()
-
+	
 	return nil
 }
 
-func (c *chat) setup() {
-	c.client.LogActivity()
-	c.server.LogActivity()
-
-	now := time.Now()
-	c.setLastActivity(now)
-	
-	c.client.SetIdleTimeout(c.getIdleTimeout())
-	c.server.SetIdleTimeout(c.getIdleTimeout())
-
-	c.client.SetMainTimeout(c.getMainTimeout())
-	c.server.SetMainTimeout(c.getMainTimeout())
-}
-
-// close останавливает чат, если его нужно остановить из вне (из балансировщика)
-func (c *chat) close() {
-	c.stop()
-	c.client.Close()
-	c.server.Close()
+func (c *chat) cancel() {
+	close(c.clientCancelChan)
+	close(c.serverCancelChan)
 }
 
 func (c *chat) getIdleTimeout() time.Duration {
