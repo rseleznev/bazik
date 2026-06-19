@@ -1,7 +1,6 @@
 package network
 
 import (
-	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -11,12 +10,11 @@ import (
 
 var testSocket = &socket{
 	fd: 1,
-	mu: sync.RWMutex{},
 	addr: models.Address{
 		IP: [4]byte{127, 0, 0, 1},
 		Port: 3000,
 	},
-	mainTimeout: time.Millisecond*500,
+	timeout: time.Millisecond*500,
 }
 
 type mockSys struct{
@@ -236,7 +234,6 @@ func TestCopyTo(t *testing.T) {
 			name: "success",
 			dst: &socket{
 				fd: 2,
-				mu: sync.RWMutex{},
 				addr: models.Address{
 					IP: [4]byte{127, 0, 0, 1},
 					Port: 7000,
@@ -268,7 +265,6 @@ func TestCopyTo(t *testing.T) {
 			name: "success with polling",
 			dst: &socket{
 				fd: 2,
-				mu: sync.RWMutex{},
 				addr: models.Address{
 					IP: [4]byte{127, 0, 0, 1},
 					Port: 7000,
@@ -310,44 +306,9 @@ func TestCopyTo(t *testing.T) {
 			},
 		},
 		{
-			name: "fail ErrIdleTimeout",
-			dst: &socket{
-				fd: 2,
-				mu: sync.RWMutex{},
-				addr: models.Address{
-					IP: [4]byte{127, 0, 0, 1},
-					Port: 7000,
-				},
-			},
-			expectedErr: models.ErrIdleTimeout,
-			sys: mockSys{
-				closeFunc: func(_ int) error {
-					return nil
-				},
-				pipeFunc: func() (int, int, error) {
-					return 10, 11, nil
-				},
-				spliceFunc: func(_, _ int) (int64, error) {
-					return 0, nil
-				},
-			},
-			p: mockPoller{
-				addFunc: func(pu models.PollingUnit) error {
-					go func() {
-						time.Sleep(time.Second*2)
-						pu.ResultChan <- nil
-					}()
-					
-					return nil
-				},
-				stopUnitPollingFunc: func(_ models.PollingUnit) {},
-			},
-		},
-		{
 			name: "fail ErrTimeout",
 			dst: &socket{
 				fd: 2,
-				mu: sync.RWMutex{},
 				addr: models.Address{
 					IP: [4]byte{127, 0, 0, 1},
 					Port: 7000,
@@ -369,7 +330,7 @@ func TestCopyTo(t *testing.T) {
 			p: mockPoller{
 				addFunc: func(pu models.PollingUnit) error {
 					go func() {
-						time.Sleep(time.Millisecond*700)
+						time.Sleep(time.Second*2)
 						pu.ResultChan <- nil
 					}()
 					
@@ -384,7 +345,7 @@ func TestCopyTo(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			testSocket.sys = tc.sys
 			testSocket.poller = tc.p
-			testSocket.idleTimeout = time.Second*1
+			testSocket.timeout = time.Second*1
 
 			err := testSocket.CopyTo(tc.dst)
 			if err != tc.expectedErr {
