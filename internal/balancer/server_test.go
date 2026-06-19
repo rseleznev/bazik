@@ -108,7 +108,7 @@ func Test_getConn(t *testing.T) {
 			n: mockNetworker{
 				newTCPConnFunc: func(_ models.Address) (models.Conn, error) {
 					return mockConn{
-						setMainTimeoutFunc: func(_ time.Duration) {},
+						setTimeoutFunc: func(_ time.Duration) {},
 						connectFunc: func() error {return nil},
 					}, nil
 				},
@@ -124,7 +124,7 @@ func Test_getConn(t *testing.T) {
 			n: mockNetworker{
 				newTCPConnFunc: func(_ models.Address) (models.Conn, error) {
 					return mockConn{
-						setMainTimeoutFunc: func(_ time.Duration) {},
+						setTimeoutFunc: func(_ time.Duration) {},
 						connectFunc: func() error {return nil},
 					}, nil
 				},
