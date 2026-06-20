@@ -1,7 +1,6 @@
 package network
 
 import (
-	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -11,7 +10,6 @@ import (
 
 var testSocket = &socket{
 	fd: 1,
-	mu: sync.RWMutex{},
 	addr: models.Address{
 		IP: [4]byte{127, 0, 0, 1},
 		Port: 3000,
@@ -236,7 +234,6 @@ func TestCopyTo(t *testing.T) {
 			name: "success",
 			dst: &socket{
 				fd: 2,
-				mu: sync.RWMutex{},
 				addr: models.Address{
 					IP: [4]byte{127, 0, 0, 1},
 					Port: 7000,
@@ -268,7 +265,6 @@ func TestCopyTo(t *testing.T) {
 			name: "success with polling",
 			dst: &socket{
 				fd: 2,
-				mu: sync.RWMutex{},
 				addr: models.Address{
 					IP: [4]byte{127, 0, 0, 1},
 					Port: 7000,
@@ -313,7 +309,6 @@ func TestCopyTo(t *testing.T) {
 			name: "fail ErrIdleTimeout",
 			dst: &socket{
 				fd: 2,
-				mu: sync.RWMutex{},
 				addr: models.Address{
 					IP: [4]byte{127, 0, 0, 1},
 					Port: 7000,
@@ -347,7 +342,6 @@ func TestCopyTo(t *testing.T) {
 			name: "fail ErrTimeout",
 			dst: &socket{
 				fd: 2,
-				mu: sync.RWMutex{},
 				addr: models.Address{
 					IP: [4]byte{127, 0, 0, 1},
 					Port: 7000,

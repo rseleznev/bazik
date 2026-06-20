@@ -36,7 +36,6 @@ func (n *net) NewTCPListener(addr models.Address) (models.Listener, error) {
 	}
 	s := &socket{
 		fd: sFd,
-		mu: sync.RWMutex{},
 		addr: addr,
 
 		sys: n.sys,
@@ -64,7 +63,6 @@ func (n *net) NewTCPConn(addr models.Address) (models.Conn, error) {
 	}
 	return &socket{
 		fd: sFd,
-		mu: sync.RWMutex{},
 		addr: addr,
 
 		sys: n.sys,

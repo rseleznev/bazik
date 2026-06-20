@@ -4,7 +4,6 @@ import (
 	"errors"
 	"log/slog"
 	"strconv"
-	"sync"
 	"syscall"
 	"time"
 
@@ -13,13 +12,9 @@ import (
 
 type socket struct {
 	fd int
-	mu sync.RWMutex
 	addr models.Address
 	mainTimeout time.Duration
 	idleTimeout time.Duration
-
-	logActivity bool
-	logActivityChan chan time.Time
 
 	timer *time.Timer
 	cancelChan chan struct{}
@@ -93,7 +88,6 @@ func (s *socket) Accept() (models.Conn, error) {
 
 	return &socket{
 		fd: sFd,
-		mu: sync.RWMutex{},
 		addr: models.Address{
 			IP: addr.Addr,
 			Port: addr.Port,
@@ -230,14 +224,8 @@ func (s *socket) CopyTo(dst models.Conn) error {
 		if err == models.ErrPollTimeout {
 			return models.ErrIdleTimeout
 		}
-		if s.isLogActivity() {
-			s.updateLastActivity()
-		}
 		
 		return err
-	}
-	if s.isLogActivity() {
-		s.updateLastActivity()
 	}
 
 	err = s.transfer(s.GetFd(), s.getPipeWriteFd())
@@ -292,29 +280,12 @@ func (s *socket) Close() {
 	}
 }
 
-func (s *socket) LogActivity() {
-	s.logActivity = true
-	s.logActivityChan = make(chan time.Time)
-}
-
-func (s *socket) LastActivity() <-chan time.Time {
-	return s.logActivityChan
-}
-
 func (s *socket) SetIdleTimeout(t time.Duration) {
-	s.mu.Lock()
 	s.idleTimeout = t
-	s.mu.Unlock()
 }
 
 func (s *socket) getIdleTimeout() time.Duration {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
 	return s.idleTimeout
-}
-
-func (s *socket) updateLastActivity() {
-	s.logActivityChan <- time.Now()
 }
 
 func (s *socket) GetRawAddr() string {
@@ -347,10 +318,6 @@ func (s *socket) getPipeWriteFd() int {
 
 func (s *socket) getPipeReadFd() int {
 	return s.pipeReadFd
-}
-
-func (s *socket) isLogActivity() bool {
-	return s.logActivity
 }
 
 func (s *socket) hasPipe() bool {

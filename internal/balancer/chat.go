@@ -77,21 +77,6 @@ func (c *chat) tcpProxy() error {
 		}
 	}()
 
-outer:
-	for {
-		select {
-		case clientLastActivity := <-c.client.LastActivity():
-			c.setLastActivity(clientLastActivity)
-			continue
-
-		case serverLastActivity := <-c.server.LastActivity():
-			c.setLastActivity(serverLastActivity)
-			continue
-
-		case <-c.ctlChan:
-			break outer
-		}
-	}
 	if c.isClientErr() {
 		return models.ErrClientSide
 	}
@@ -105,9 +90,6 @@ outer:
 }
 
 func (c *chat) setup() {
-	c.client.LogActivity()
-	c.server.LogActivity()
-
 	now := time.Now()
 	c.setLastActivity(now)
 	

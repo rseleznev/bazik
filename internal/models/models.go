@@ -51,15 +51,16 @@ type Listener interface {
 }
 
 type Conn interface {
+	WithTimer(t *time.Timer)
+	WithCancel(ch chan struct{})
+	Cancel()
 	Connect() error
-	Close()
-	GetFd() int
 	CopyTo(Conn) error
+	Close()
 	SetIdleTimeout(time.Duration)
-	SetMainTimeout(time.Duration)
-	LogActivity()
-	LastActivity() <-chan time.Time
 	GetRawAddr() string
 	CheckUnread() (int, error)
 	CheckUnsent() (int, error)
+	GetFd() int
+	SetMainTimeout(time.Duration)
 }
