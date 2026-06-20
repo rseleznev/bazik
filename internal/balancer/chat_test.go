@@ -2,7 +2,6 @@ package balancer
 
 import (
 	"errors"
-	"sync"
 	"testing"
 	"time"
 
@@ -144,10 +143,8 @@ func Test_tcpProxy(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			testChat := &chat{
 				id: "test",
-				mu: sync.RWMutex{},
 				mainTimeout: time.Millisecond*500,
 				idleTimeout: time.Second*300,
-				ctlChan: make(chan struct{}),
 
 				client: tc.client,
 				server: tc.server,

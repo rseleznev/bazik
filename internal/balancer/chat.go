@@ -2,7 +2,6 @@ package balancer
 
 import (
 	"log/slog"
-	"sync"
 	"time"
 
 	"github.com/rseleznev/bazik/internal/models"
@@ -10,33 +9,16 @@ import (
 
 type chat struct {
 	id string
-	mu sync.RWMutex
-	stopped bool
 	mainTimeout time.Duration
 	idleTimeout time.Duration
 	lastActivity time.Time
-	ctlChan chan struct{}
+	cancelChan chan struct{}
 
 	client models.Conn
-	server models.Conn
-
 	clientErr error
+
+	server models.Conn
 	serverErr error
-}
-
-func (c *chat) isStopped() bool {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.stopped
-}
-
-func (c *chat) stop() {
-	c.mu.Lock()
-	if !c.stopped {
-		c.stopped = true
-		close(c.ctlChan)
-	}
-	c.mu.Unlock()
 }
 
 // tcpProxy проксирует TCP-трафик в режиме zero-copy
@@ -45,46 +27,15 @@ func (c *chat) tcpProxy() error {
 	defer slog.Info("проксирование чата завершено", "module", "chat", "chatId", c.id)
 	c.setup()
 
-	go func() {
-		for !c.isStopped() {
-			err := c.client.CopyTo(c.server)
-			if err != nil {
-				if err == models.ErrIdleTimeout {
-					c.stop()
-					return
-				}
-				c.setClientErr(err)
-				slog.Warn("ошибка на клиентской стороне", "module", "chat", "err", err)
-				c.stop()
-				return
-			}
-		}
-	}()
-
-	go func() {
-		for !c.isStopped() {
-			err := c.server.CopyTo(c.client)
-			if err != nil {
-				if err == models.ErrIdleTimeout {
-					c.stop()
-					return
-				}
-				c.setServerErr(err)
-				slog.Warn("ошибка на серверной стороне", "module", "chat", "err", err)
-				c.stop()
-				return
-			}
-		}
-	}()
+	go c.processClient()
+	c.processServer()
 
 	if c.isClientErr() {
 		return models.ErrClientSide
 	}
 	if c.isServerErr() {
-		// c.server.Close()
 		return c.getServerErr()	
 	}
-	// c.client.Close()
 
 	return nil
 }
@@ -98,11 +49,49 @@ func (c *chat) setup() {
 
 	c.client.SetMainTimeout(c.getMainTimeout())
 	c.server.SetMainTimeout(c.getMainTimeout())
+
+	timer := time.NewTimer(c.getIdleTimeout())
+	c.client.WithTimer(timer)
+	c.server.WithTimer(timer)
+
+	c.setCancelChan()
+	c.client.WithCancel(c.getCancelChan())
+	c.server.WithCancel(c.getCancelChan())
+}
+
+func (c *chat) processClient() {
+	for {
+		err := c.client.CopyTo(c.server)
+		if err != nil {
+			if err == models.ErrIdleTimeout {
+				c.cancel()
+				return
+			}
+			c.setClientErr(err)
+			slog.Warn("ошибка на клиентской стороне", "module", "chat", "err", err)
+			return
+		}	
+	}
+}
+
+func (c *chat) processServer() {
+	for {
+		err := c.client.CopyTo(c.server)
+		if err != nil {
+			if err == models.ErrIdleTimeout {
+				c.cancel()
+				return
+			}
+			c.setServerErr(err)
+			slog.Warn("ошибка на серверной стороне", "module", "chat", "err", err)
+			return
+		}	
+	}
 }
 
 // close останавливает чат, если его нужно остановить из вне (из балансировщика)
 func (c *chat) close() {
-	c.stop()
+	// c.stop()
 	c.client.Close()
 	c.server.Close()
 }
@@ -117,6 +106,24 @@ func (c *chat) getMainTimeout() time.Duration {
 
 func (c *chat) setLastActivity(t time.Time) {
 	c.lastActivity = t
+}
+
+func (c *chat) setCancelChan() {
+	c.cancelChan = make(chan struct{})
+}
+
+func (c *chat) getCancelChan() chan struct{} {
+	return c.cancelChan
+}
+
+func (c *chat) cancel() {
+	// рекавер на случай двойного закрытия
+	defer func ()  {
+		if v := recover(); v != nil {
+			return
+		}	
+	}()
+	close(c.getCancelChan())
 }
 
 func (c *chat) setClientErr(err error) {

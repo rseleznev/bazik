@@ -78,10 +78,8 @@ func (b *TCPBalancer) link(c models.Conn) {
 
 	chat := &chat{
 		id: id,
-		mu: sync.RWMutex{},
 		mainTimeout: b.getMainTimeout(),
 		idleTimeout: server.getIdleTimeout(),
-		ctlChan: make(chan struct{}),
 
 		client: c,
 		server: s,
