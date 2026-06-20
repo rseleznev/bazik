@@ -21,12 +21,35 @@ type socket struct {
 	logActivity bool
 	logActivityChan chan time.Time
 
+	timer *time.Timer
+	cancelChan chan struct{}
+
 	pipeWriteFd int
 	pipeReadFd int
 	dataInPipe bool
 	
 	sys syscaller
 	poller poller
+}
+
+func (s *socket) WithTimer(t *time.Timer) {
+	s.timer = t
+}
+
+func (s *socket) expired() <-chan time.Time {
+	return s.timer.C
+}
+
+func (s *socket) WithCancel(ch chan struct{}) {
+	s.cancelChan = ch
+}
+
+func (s *socket) done() <-chan struct{} {
+	return s.cancelChan
+}
+
+func (s *socket) Cancel() {
+	close(s.cancelChan)
 }
 
 func (s *socket) bind() error {
@@ -48,7 +71,7 @@ func (s *socket) Accept() (models.Conn, error) {
 		sFd, a, err = s.sys.Accept(s.GetFd())
 		if err != nil {
 			if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EWOULDBLOCK) {
-				err := s.pollWithoutTimeout("income")
+				err := s.poll("income")
 				if err != nil {
 					slog.Error("ошибка слушающего сокета", "module", "socket", "addr", s.addr.Raw, "err", err)
 					return nil, err
@@ -119,8 +142,6 @@ func (s *socket) poll(eventType string) error {
 	if err != nil {
 		return err
 	}
-	timer := time.NewTimer(s.getIdleTimeout())
-	defer timer.Stop()
 
 	select {
 	case err = <-pUnit.ResultChan:
@@ -129,11 +150,8 @@ func (s *socket) poll(eventType string) error {
 		}
 		return nil
 
-	case <-timer.C:
-		s.poller.StopUnitPolling(pUnit)
-
-		return models.ErrPollTimeout
-
+	case <-s.done():
+		return models.ErrPollCancel
 	}
 }
 
@@ -166,7 +184,7 @@ func (s *socket) pollFdWithTimeout(fd int, t time.Duration, eventType string) er
 	}
 }
 
-func (s *socket) pollWithoutTimeout(eventType string) error {
+func (s *socket) pollWithTimer(eventType string) error {
 	pUnit := models.PollingUnit{
 		SocketFd: s.GetFd(),
 		EventType: eventType,
@@ -176,12 +194,24 @@ func (s *socket) pollWithoutTimeout(eventType string) error {
 	if err != nil {
 		return err
 	}
+	
+	select {
+	case err = <-pUnit.ResultChan:
+		s.timer.Reset(s.getIdleTimeout())
+		if err != nil {
+			return err
+		}
+		return nil
 
-	err = <-pUnit.ResultChan
-	if err != nil {
-		return err
+	case <-s.expired():
+		s.poller.StopUnitPolling(pUnit)
+
+		return models.ErrPollTimeout
+
+	case <-s.done():
+		return models.ErrPollCancel
+
 	}
-	return nil
 }
 
 func (s *socket) CopyTo(dst models.Conn) error {
@@ -195,7 +225,7 @@ func (s *socket) CopyTo(dst models.Conn) error {
 		}
 	}
 	
-	err := s.poll("income")
+	err := s.pollWithTimer("income")
 	if err != nil {
 		if err == models.ErrPollTimeout {
 			return models.ErrIdleTimeout
