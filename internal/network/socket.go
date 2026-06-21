@@ -203,6 +203,8 @@ func (s *socket) pollWithTimer(eventType string) error {
 		return models.ErrPollTimeout
 
 	case <-s.done():
+		s.poller.StopUnitPolling(pUnit)
+
 		return models.ErrPollCancel
 
 	}
