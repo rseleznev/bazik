@@ -2,6 +2,7 @@ package balancer
 
 import (
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/rseleznev/bazik/internal/models"
@@ -9,6 +10,7 @@ import (
 
 type chat struct {
 	id string
+	mu sync.Mutex
 	mainTimeout time.Duration
 	idleTimeout time.Duration
 	lastActivity time.Time
@@ -133,7 +135,9 @@ func (c *chat) cancel() {
 }
 
 func (c *chat) setClientErr(err error) {
+	c.mu.Lock()
 	c.clientErr = err
+	c.mu.Unlock()
 }
 
 func (c *chat) setServerErr(err error) {
@@ -141,6 +145,8 @@ func (c *chat) setServerErr(err error) {
 }
 
 func (c *chat) isClientErr() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return c.clientErr != nil
 }
 

@@ -78,6 +78,7 @@ func (b *TCPBalancer) link(c models.Conn) {
 
 	chat := &chat{
 		id: id,
+		mu: sync.Mutex{},
 		mainTimeout: b.getMainTimeout(),
 		idleTimeout: server.getIdleTimeout(),
 
