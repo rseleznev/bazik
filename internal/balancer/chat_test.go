@@ -2,6 +2,8 @@ package balancer
 
 import (
 	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -9,7 +11,8 @@ import (
 )
 
 func Test_tcpProxy(t *testing.T) {
-	requestCounter := 0
+	var requestCounter atomic.Int32
+	var cancelChan chan struct{}
 	
 	testCases := []struct{
 		name string
@@ -21,6 +24,8 @@ func Test_tcpProxy(t *testing.T) {
 			name: "success fast",
 			expectedErr: nil,
 			client: mockConn{
+				withTimerFunc: func(_ *time.Timer) {},
+				withCancelFunc: func(_ chan struct{}) {},
 				getFdFunc: func() int {return 3},
 				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
@@ -28,6 +33,8 @@ func Test_tcpProxy(t *testing.T) {
 				closeFunc: func() {},
 			},
 			server: mockConn{
+				withTimerFunc: func(_ *time.Timer) {},
+				withCancelFunc: func(_ chan struct{}) {},
 				getFdFunc: func() int {return 5},
 				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
@@ -39,12 +46,15 @@ func Test_tcpProxy(t *testing.T) {
 			name: "success with client activity",
 			expectedErr: nil,
 			client: mockConn{
+				withTimerFunc: func(_ *time.Timer) {},
+				withCancelFunc: func(_ chan struct{}) {},
 				getFdFunc: func() int {return 3},
 				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
 				copyToFunc: func(_ models.Conn) error {
-					if requestCounter == 0 {
-						requestCounter++
+					if requestCounter.Load() == 0 {
+						time.Sleep(time.Millisecond*50)
+						requestCounter.Add(1)
 						return nil
 					}
 					return models.ErrIdleTimeout
@@ -52,12 +62,16 @@ func Test_tcpProxy(t *testing.T) {
 				closeFunc: func() {},
 			},
 			server: mockConn{
+				withTimerFunc: func(_ *time.Timer) {},
+				withCancelFunc: func(_ chan struct{}) {},
 				getFdFunc: func() int {return 5},
 				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
 				copyToFunc: func(_ models.Conn) error {
-					time.Sleep(time.Millisecond*200)
-					return models.ErrIdleTimeout
+					if requestCounter.Load() == 0 {
+						return nil
+					}
+					return models.ErrPollCancel
 				},
 				closeFunc: func() {},
 			},
@@ -66,22 +80,29 @@ func Test_tcpProxy(t *testing.T) {
 			name: "success with server activity",
 			expectedErr: nil,
 			client: mockConn{
+				withTimerFunc: func(_ *time.Timer) {},
+				withCancelFunc: func(_ chan struct{}) {},
 				getFdFunc: func() int {return 3},
 				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
 				copyToFunc: func(_ models.Conn) error {
-					time.Sleep(time.Millisecond*200)
-					return models.ErrIdleTimeout
+					if requestCounter.Load() == 0 {
+						return nil
+					}
+					return models.ErrPollCancel
 				},
 				closeFunc: func() {},
 			},
 			server: mockConn{
+				withTimerFunc: func(_ *time.Timer) {},
+				withCancelFunc: func(_ chan struct{}) {},
 				getFdFunc: func() int {return 5},
 				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
 				copyToFunc: func(_ models.Conn) error {
-					if requestCounter == 0 {
-						requestCounter++
+					if requestCounter.Load() == 0 {
+						time.Sleep(time.Millisecond*50)
+						requestCounter.Add(1)
 						return nil
 					}
 					return models.ErrIdleTimeout
@@ -93,22 +114,31 @@ func Test_tcpProxy(t *testing.T) {
 			name: "fail ErrClientSide",
 			expectedErr: models.ErrClientSide,
 			client: mockConn{
+				withTimerFunc: func(_ *time.Timer) {},
+				withCancelFunc: func(_ chan struct{}) {},
 				getFdFunc: func() int {return 3},
 				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
 				copyToFunc: func(_ models.Conn) error {
-					time.Sleep(time.Second*1)
+					if requestCounter.Load() == 0 {
+						requestCounter.Add(1)
+						return nil
+					}
 					return errors.New("test err")
 				},
 				closeFunc: func() {},
 			},
 			server: mockConn{
+				withTimerFunc: func(_ *time.Timer) {},
+				withCancelFunc: func(ch chan struct{}) {
+					cancelChan = ch
+				},
 				getFdFunc: func() int {return 5},
 				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
 				copyToFunc: func(_ models.Conn) error {
-					time.Sleep(time.Millisecond*300)
-					return nil
+					<-cancelChan
+					return models.ErrPollCancel
 				},
 				closeFunc: func() {},
 			},
@@ -117,21 +147,30 @@ func Test_tcpProxy(t *testing.T) {
 			name: "fail serverSide",
 			expectedErr: models.ErrNoConnsAvailable,
 			client: mockConn{
+				withTimerFunc: func(_ *time.Timer) {},
+				withCancelFunc: func(ch chan struct{}) {
+					cancelChan = ch
+				},
 				getFdFunc: func() int {return 3},
 				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
 				copyToFunc: func(_ models.Conn) error {
-					time.Sleep(time.Millisecond*300)
-					return nil
+					<-cancelChan
+					return models.ErrPollCancel
 				},
 				closeFunc: func() {},
 			},
 			server: mockConn{
+				withTimerFunc: func(_ *time.Timer) {},
+				withCancelFunc: func(_ chan struct{}) {},
 				getFdFunc: func() int {return 5},
 				setIdleTimeoutFunc: func(_ time.Duration) {},
 				setMainTimeoutFunc: func(_ time.Duration) {},
 				copyToFunc: func(_ models.Conn) error {
-					time.Sleep(time.Second*1)
+					if requestCounter.Load() == 0 {
+						requestCounter.Add(1)
+						return nil
+					}
 					return models.ErrNoConnsAvailable
 				},
 				closeFunc: func() {},
@@ -143,6 +182,7 @@ func Test_tcpProxy(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			testChat := &chat{
 				id: "test",
+				mu: sync.Mutex{},
 				mainTimeout: time.Millisecond*500,
 				idleTimeout: time.Second*300,
 
@@ -154,7 +194,9 @@ func Test_tcpProxy(t *testing.T) {
 			if err != tc.expectedErr {
 				t.Errorf("Ожидаемая ошибка: %s, получено: %s", tc.expectedErr, err)
 			}
-			requestCounter = 0
+			if n := requestCounter.Load(); n > 0 {
+				requestCounter.Add(-n)
+			}
 		})
 	}
 }
