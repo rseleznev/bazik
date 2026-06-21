@@ -43,10 +43,6 @@ func (s *socket) done() <-chan struct{} {
 	return s.cancelChan
 }
 
-func (s *socket) Cancel() {
-	close(s.cancelChan)
-}
-
 func (s *socket) bind() error {
 	return s.sys.Bind(s.GetFd(), &syscall.SockaddrInet4{
 		Addr: s.addr.IP,

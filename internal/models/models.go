@@ -53,7 +53,6 @@ type Listener interface {
 type Conn interface {
 	WithTimer(t *time.Timer)
 	WithCancel(ch chan struct{})
-	Cancel()
 	Connect() error
 	CopyTo(Conn) error
 	Close()
