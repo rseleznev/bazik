@@ -379,6 +379,8 @@ func TestCopyTo(t *testing.T) {
 			testSocket.sys = tc.sys
 			testSocket.poller = tc.p
 			testSocket.idleTimeout = time.Second*1
+			ch := time.NewTimer(testSocket.getIdleTimeout())
+			testSocket.WithTimer(ch)
 
 			err := testSocket.CopyTo(tc.dst)
 			if err != tc.expectedErr {
