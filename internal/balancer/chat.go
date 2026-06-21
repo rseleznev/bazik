@@ -63,8 +63,8 @@ func (c *chat) processClient() {
 	for {
 		err := c.client.CopyTo(c.server)
 		if err != nil {
+			c.cancel()
 			if err == models.ErrIdleTimeout {
-				c.cancel()
 				return
 			}
 			if err == models.ErrPollCancel {
@@ -81,8 +81,8 @@ func (c *chat) processServer() {
 	for {
 		err := c.server.CopyTo(c.client)
 		if err != nil {
+			c.cancel()
 			if err == models.ErrIdleTimeout {
-				c.cancel()
 				return
 			}
 			if err == models.ErrPollCancel {
