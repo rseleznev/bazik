@@ -67,6 +67,9 @@ func (c *chat) processClient() {
 				c.cancel()
 				return
 			}
+			if err == models.ErrPollCancel {
+				return
+			}
 			c.setClientErr(err)
 			slog.Warn("ошибка на клиентской стороне", "module", "chat", "err", err)
 			return
@@ -80,6 +83,9 @@ func (c *chat) processServer() {
 		if err != nil {
 			if err == models.ErrIdleTimeout {
 				c.cancel()
+				return
+			}
+			if err == models.ErrPollCancel {
 				return
 			}
 			c.setServerErr(err)
