@@ -25,7 +25,6 @@ func (m mockNetworker) NewTCPConn(a models.Address) (models.Conn, error) {
 type mockConn struct {
 	withTimerFunc func(*time.Timer)
 	withCancelFunc func(ch chan struct{})
-	cancelFunc func()
 	connectFunc func() error
 	copyToFunc func(models.Conn) error
 	closeFunc func()
@@ -41,9 +40,6 @@ func (m mockConn) WithTimer(t *time.Timer) {
 }
 func (m mockConn) WithCancel(ch chan struct{}) {
 	m.withCancelFunc(ch)
-}
-func (m mockConn) Cancel() {
-	m.cancelFunc()
 }
 func (m mockConn) Connect() error {
 	return m.connectFunc()
