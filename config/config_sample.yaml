@@ -6,9 +6,9 @@ proxy_mode: zero-copy
 main_timeout: 500
 retry_amount: 0
 max_clients_amount: 5
-max_idle_seconds: 300
+max_idle_seconds: 120
 servers:
-  - address: "80.78.247.133:6379"
+  - address: "127.0.0.1:6379" # "80.78.247.133:6379"
     max_conns_pool_len: 10
     initial_conns_pool_len: 3
 

@@ -79,7 +79,7 @@ func (c *chat) processClient() {
 
 func (c *chat) processServer() {
 	for {
-		err := c.client.CopyTo(c.server)
+		err := c.server.CopyTo(c.client)
 		if err != nil {
 			if err == models.ErrIdleTimeout {
 				c.cancel()
