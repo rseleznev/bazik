@@ -65,7 +65,7 @@ func (c *chat) processClient() {
 	for {
 		err := c.client.CopyTo(c.server)
 		if err != nil {
-			c.cancel()
+			defer c.cancel()
 			if err == models.ErrIdleTimeout {
 				return
 			}
@@ -83,7 +83,7 @@ func (c *chat) processServer() {
 	for {
 		err := c.server.CopyTo(c.client)
 		if err != nil {
-			c.cancel()
+			defer c.cancel()
 			if err == models.ErrIdleTimeout {
 				return
 			}
@@ -141,7 +141,9 @@ func (c *chat) setClientErr(err error) {
 }
 
 func (c *chat) setServerErr(err error) {
+	c.mu.Lock()
 	c.serverErr = err
+	c.mu.Unlock()
 }
 
 func (c *chat) isClientErr() bool {
@@ -151,6 +153,8 @@ func (c *chat) isClientErr() bool {
 }
 
 func (c *chat) isServerErr() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return c.serverErr != nil
 }
 
