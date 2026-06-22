@@ -1,6 +1,7 @@
 package balancer
 
 import (
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -74,11 +75,13 @@ func Test_init(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			testServer.opts = tc.opts
 			testServer.net = tc.n
+			testServer.activeConnectionsAmount = atomic.Int32{}
 
 			err := testServer.init()
 			if err != tc.expectedErr {
 				t.Errorf("Ожидаемая ошибка: %s, получено: %s", tc.expectedErr, err)
 			}
+			t.Log("activeConnectionsAmount: ", testServer.activeConnectionsAmount.Load())
 		})
 	}
 }
@@ -144,6 +147,7 @@ func Test_getConn(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			testServer.opts = tc.opts
 			testServer.net = tc.n
+			testServer.activeConnectionsAmount = atomic.Int32{}
 			if tc.setupFunc != nil {
 				tc.setupFunc()
 			}
@@ -238,6 +242,7 @@ func Test_storeConn(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			testServer.opts = tc.opts
+			testServer.activeConnectionsAmount = atomic.Int32{}
 			if tc.setupFunc != nil {
 				tc.setupFunc()
 			}
