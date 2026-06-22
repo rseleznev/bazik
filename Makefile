@@ -5,7 +5,7 @@ mod:
 	go mod download
 
 test: mod
-	go test ./... -v -count=1 -race
+	go test ./... -v -count=5 -race
 
 build: test
 	go build -o bazik
